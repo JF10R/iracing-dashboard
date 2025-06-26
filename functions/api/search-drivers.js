@@ -1,4 +1,4 @@
-import { iRacing } from 'iracing-api';
+import iRacing from 'iracing-api';
 
 export async function onRequestPost(context) {
   // Get credentials from Cloudflare secrets

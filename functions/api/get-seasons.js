@@ -1,4 +1,4 @@
-import { iRacing } from 'iracing-api';
+import iRacing from 'iracing-api';
 
 export async function onRequest(context) {
   const { searchParams } = new URL(context.request.url);

@@ -1,4 +1,4 @@
-import { iRacing } from 'iracing-api';
+import iRacing from 'iracing-api';
 
 export async function onRequestPost(context) {
   const { IRACING_EMAIL, IRACING_PASSWORD } = context.env;
