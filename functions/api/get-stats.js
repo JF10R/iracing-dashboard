@@ -1,5 +1,14 @@
 import iRacing from 'iracing-api';
 
+// This "monkey-patch" intercepts fetch requests to make them compatible with Cloudflare Workers.
+const originalFetch = globalThis.fetch;
+globalThis.fetch = (url, options) => {
+  if (options && options.cache === 'no-cache') {
+    delete options.cache;
+  }
+  return originalFetch(url, options);
+};
+
 export async function onRequestPost(context) {
   const { IRACING_EMAIL, IRACING_PASSWORD } = context.env;
   if (!IRACING_EMAIL || !IRACING_PASSWORD) {
@@ -14,16 +23,7 @@ export async function onRequestPost(context) {
       return new Response('Missing required parameters in POST body', { status: 400 });
     }
 
-    const iRacingAPI = new iRacing({
-      axiosOptions: {
-        cache: 'no-store',
-        headers: {
-          'Cache-Control': null,
-          'Pragma': null,
-        }
-      }
-    });
-
+    const iRacingAPI = new iRacing();
     await iRacingAPI.login(IRACING_EMAIL, IRACING_PASSWORD);
     const data = await iRacingAPI.getSeasonStats({ 
       customerId: parseInt(custId), 
@@ -34,9 +34,8 @@ export async function onRequestPost(context) {
     return new Response(JSON.stringify(data), {
       headers: { 'Content-Type': 'application/json' },
     });
-
   } catch (error) {
-    console.error("Function error:", error);
+    console.error("Function error:", { message: error.message, stack: error.stack });
     return new Response('Error in get-stats function: ' + error.message, { status: 500 });
   }
 }

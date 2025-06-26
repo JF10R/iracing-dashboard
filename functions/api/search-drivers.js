@@ -1,5 +1,14 @@
 import iRacing from 'iracing-api';
 
+// This "monkey-patch" intercepts fetch requests to make them compatible with Cloudflare Workers.
+const originalFetch = globalThis.fetch;
+globalThis.fetch = (url, options) => {
+  if (options && options.cache === 'no-cache') {
+    delete options.cache;
+  }
+  return originalFetch(url, options);
+};
+
 export async function onRequestPost(context) {
   const { IRACING_EMAIL, IRACING_PASSWORD } = context.env;
   if (!IRACING_EMAIL || !IRACING_PASSWORD) {
@@ -10,27 +19,15 @@ export async function onRequestPost(context) {
     const body = await context.request.json();
     const searchTerm = body.searchTerm;
 
-    // Initialize the API wrapper with axiosOptions to prevent cache errors
-    const iRacingAPI = new iRacing({
-      axiosOptions: {
-        // Explicitly set a supported cache mode for the Cloudflare runtime
-        cache: 'no-store',
-        headers: {
-          'Cache-Control': null,
-          'Pragma': null,
-        }
-      }
-    });
-
+    const iRacingAPI = new iRacing();
     await iRacingAPI.login(IRACING_EMAIL, IRACING_PASSWORD);
     const data = await iRacingAPI.searchDrivers({ searchTerm });
     
     return new Response(JSON.stringify(data), {
       headers: { 'Content-Type': 'application/json' },
     });
-
   } catch (error) {
-    console.error("Function error:", error);
+    console.error("Function error:", { message: error.message, stack: error.stack });
     return new Response('Error in search-drivers function: ' + error.message, { status: 500 });
   }
 }
