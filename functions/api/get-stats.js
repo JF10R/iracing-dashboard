@@ -16,6 +16,7 @@ export async function onRequestPost(context) {
 
     const iRacingAPI = new iRacing({
       axiosOptions: {
+        cache: 'no-store',
         headers: {
           'Cache-Control': null,
           'Pragma': null,

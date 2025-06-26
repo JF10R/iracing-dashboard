@@ -13,6 +13,8 @@ export async function onRequestPost(context) {
     // Initialize the API wrapper with axiosOptions to prevent cache errors
     const iRacingAPI = new iRacing({
       axiosOptions: {
+        // Explicitly set a supported cache mode for the Cloudflare runtime
+        cache: 'no-store',
         headers: {
           'Cache-Control': null,
           'Pragma': null,
