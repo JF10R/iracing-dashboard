@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>iRacing Driver Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #1a1a1a;
+            color: #f0f0f0;
+        }
+        .stat-card {
+            background-color: #2c2c2c;
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+            border: 1px solid #444;
+        }
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2), 0 4px 6px -2px rgba(0, 0, 0, 0.1);
+        }
+        .btn-primary {
+            background-color: #e60000;
+            color: white;
+            transition: background-color 0.3s;
+        }
+        .btn-primary:hover {
+            background-color: #c00;
+        }
+        .form-input, .form-select {
+            background-color: #2c2c2c;
+            border-color: #444;
+            color: #f0f0f0;
+        }
+        .modal-backdrop {
+            background-color: rgba(0,0,0,0.7);
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+    <div id="app" class="container mx-auto p-4 md:p-8 max-w-7xl">
+        <!-- Header -->
+        <header class="text-center mb-8">
+            <h1 class="text-4xl md:text-5xl font-bold text-white mb-2">iRacing Driver Dashboard</h1>
+            <p id="header-subtitle" class="text-lg text-gray-400">Login to your iRacing account to begin.</p>
+        </header>
+
+        <!-- Login Section -->
+        <div id="login-section" class="max-w-md mx-auto mb-8 bg-gray-800 p-6 rounded-xl shadow-lg">
+             <h2 class="text-2xl font-bold text-center mb-4">iRacing Login</h2>
+             <div class="space-y-4">
+                 <input type="email" id="email-input" class="w-full px-4 py-3 rounded-lg form-input" placeholder="Email">
+                 <input type="password" id="password-input" class="w-full px-4 py-3 rounded-lg form-input" placeholder="Password">
+                 <button id="login-btn" class="btn-primary w-full font-semibold px-6 py-3 rounded-lg">Login</button>
+             </div>
+             <p class="text-xs text-gray-500 mt-4 text-center">Note: This is a simulation. Credentials are not sent over the network from this page. Open your browser's developer console to see the generated API commands.</p>
+        </div>
+
+        <!-- Search Section -->
+        <div id="search-section" class="max-w-2xl mx-auto mb-8 hidden">
+            <div class="flex flex-col sm:flex-row gap-2">
+                <input type="text" id="driver-search" class="w-full px-4 py-3 rounded-lg form-input focus:outline-none focus:ring-2 focus:ring-red-500" placeholder="Search for a driver (e.g., Max Verstappen)...">
+                <button id="search-btn" class="btn-primary font-semibold px-6 py-3 rounded-lg whitespace-nowrap">Search</button>
+            </div>
+            <div id="search-loader" class="text-center mt-4 hidden">
+                <p>Searching for drivers...</p>
+            </div>
+        </div>
+
+        <!-- Driver Selection Modal -->
+        <div id="driver-modal" class="fixed inset-0 z-50 items-center justify-center hidden p-4 modal-backdrop">
+            <div class="bg-gray-800 rounded-lg shadow-xl w-full max-w-md">
+                <div class="p-6 border-b border-gray-700">
+                    <h3 class="text-xl font-semibold">Select a Driver</h3>
+                </div>
+                <div id="driver-list" class="p-6 max-h-80 overflow-y-auto"></div>
+                 <div class="p-4 bg-gray-900/50 rounded-b-lg text-right">
+                    <button id="close-modal-btn" class="bg-gray-600 hover:bg-gray-500 text-white font-semibold px-4 py-2 rounded-lg">Cancel</button>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- Dashboard Content -->
+        <div id="dashboard" class="hidden">
+            <!-- Driver Info and Filters -->
+            <div class="bg-gray-800 p-6 rounded-xl mb-8 shadow-lg">
+                <div class="flex flex-wrap items-center justify-between gap-4">
+                    <div>
+                        <h2 id="driver-name" class="text-3xl font-bold text-white"></h2>
+                        <p id="driver-cust-id" class="text-gray-400"></p>
+                    </div>
+                    <div class="flex flex-wrap gap-4">
+                        <select id="year-select" class="form-select rounded-lg"></select>
+                        <select id="season-select" class="form-select rounded-lg"></select>
+                        <select id="category-select" class="form-select rounded-lg"></select>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="dashboard-loader" class="text-center mt-8 hidden">
+                <p class="text-lg">Loading season data...</p>
+            </div>
+
+            <div id="stats-content">
+                 <!-- Summary Stats -->
+                <div id="summary-stats" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8"></div>
+
+                <!-- Lap Time Graph -->
+                <div class="bg-gray-800 p-6 rounded-xl shadow-lg">
+                     <h3 class="text-xl font-semibold mb-4">Best Lap Time Evolution</h3>
+                     <div class="flex flex-wrap gap-4 mb-4">
+                        <select id="track-select" class="form-select rounded-lg flex-grow"></select>
+                        <select id="car-select" class="form-select rounded-lg flex-grow"></select>
+                     </div>
+                     <div class="h-96">
+                        <canvas id="lap-time-chart"></canvas>
+                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    const api = {
+        // Calls your /api/search-drivers function
+        searchDrivers: async function(query) {
+            const response = await fetch('/api/search-drivers', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ searchTerm: query })
+            });
+            if (!response.ok) {
+                console.error("Failed to fetch from backend");
+                alert('Error searching for drivers. Check the console for details.');
+                return [];
+            }
+            const result = await response.json();
+            // The actual API returns drivers in a nested object
+            return result.drivers || [];
+        },
+
+        // Calls your /api/get-seasons function
+        getSeasons: async function(custId) {
+            const response = await fetch(`/api/get-seasons?custId=${custId}`);
+            if (!response.ok) {
+                console.error("Failed to fetch seasons");
+                alert('Error fetching season list. Check the console for details.');
+                return [];
+            }
+            return await response.json();
+        },
+        
+        // Calls your /api/get-stats function
+        getSeasonStats: async function(custId, year, season) {
+             const response = await fetch(`/api/get-stats?custId=${custId}&year=${year}&season=${season}`);
+             if (!response.ok) {
+                console.error("Failed to fetch stats");
+                alert('Error fetching season stats. Check the console for details.');
+                return {};
+             }
+             return await response.json();
+        }
+    };
+
+    // --- APPLICATION LOGIC (Updated) --- //
+    document.addEventListener('DOMContentLoaded', () => {
+        // Remove login-related variables
+        const searchSection = document.getElementById('search-section');
+        const searchBtn = document.getElementById('search-btn');
+        const driverSearchInput = document.getElementById('driver-search');
+        
+        // Make the search section visible by default
+        searchSection.classList.remove('hidden');
+        document.getElementById('header-subtitle').textContent = "Enter a driver's name to view their racing statistics.";
+        
+        // All other variables remain the same
+        const dashboardDiv = document.getElementById('dashboard');
+        const searchLoader = document.getElementById('search-loader');
+        const dashboardLoader = document.getElementById('dashboard-loader');
+        const statsContentDiv = document.getElementById('stats-content');
+        const driverModal = document.getElementById('driver-modal');
+        const driverListDiv = document.getElementById('driver-list');
+        const closeModalBtn = document.getElementById('close-modal-btn');
+        const yearSelect = document.getElementById('year-select');
+        const seasonSelect = document.getElementById('season-select');
+        const categorySelect = document.getElementById('category-select');
+        const trackSelect = document.getElementById('track-select');
+        const carSelect = document.getElementById('car-select');
+        let currentDriver = null;
+        let seasonData = null;
+        let lapTimeChart = null;
+
+        // The login handler is no longer needed.
+        
+        const handleSearch = async () => {
+            const query = driverSearchInput.value.trim();
+            if (!query) return;
+            searchLoader.classList.remove('hidden');
+            driverListDiv.innerHTML = '';
+            try {
+                const drivers = await api.searchDrivers(query);
+                searchLoader.classList.add('hidden');
+                if (drivers.length > 0) {
+                    drivers.forEach(driver => {
+                        const driverEl = document.createElement('div');
+                        driverEl.className = 'p-3 hover:bg-gray-700 rounded-lg cursor-pointer';
+                        driverEl.textContent = driver.display_name;
+                        driverEl.dataset.custId = driver.cust_id;
+                        driverEl.addEventListener('click', () => selectDriver(driver));
+                        driverListDiv.appendChild(driverEl);
+                    });
+                    driverModal.classList.add('flex');
+                    driverModal.classList.remove('hidden');
+                } else {
+                    driverListDiv.innerHTML = '<p class="text-gray-400">No drivers found.</p>';
+                    driverModal.classList.add('flex');
+                    driverModal.classList.remove('hidden');
+                }
+            } catch (error) {
+                console.error("Error searching for drivers:", error);
+                searchLoader.classList.add('hidden');
+                driverListDiv.innerHTML = `<p class="text-red-400">An error occurred: ${error.message}</p>`;
+            }
+        };
+        searchBtn.addEventListener('click', handleSearch);
+        driverSearchInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') handleSearch();
+        });
+        closeModalBtn.addEventListener('click', () => {
+            driverModal.classList.add('hidden');
+            driverModal.classList.remove('flex');
+        });
+
+        // The rest of the functions (selectDriver, populateSeasonFilters, etc.)
+        // remain the same as they now use the updated `api` object.
+        async function selectDriver(driver) {
+            currentDriver = driver;
+            driverModal.classList.add('hidden');
+            driverModal.classList.remove('flex');
+            document.getElementById('driver-name').textContent = driver.display_name;
+            document.getElementById('driver-cust-id').textContent = `Customer ID: ${driver.cust_id}`;
+            dashboardDiv.classList.remove('hidden');
+            dashboardLoader.classList.remove('hidden');
+            statsContentDiv.classList.add('hidden');
+            const seasons = await api.getSeasons(driver.cust_id);
+            populateSeasonFilters(seasons);
+            loadSeasonData();
+        }
+        function populateSeasonFilters(seasons) {
+            const uniqueYears = [...new Set(seasons.map(s => s.year))].sort((a,b) => b-a);
+            yearSelect.innerHTML = uniqueYears.map(y => `<option value="${y}">${y}</option>`).join('');
+            const seasonsForYear = seasons.filter(s => s.year == yearSelect.value).sort((a,b) => b.season - a.season);
+            seasonSelect.innerHTML = seasonsForYear.map(s => `<option value="${s.season}">Season ${s.season}</option>`).join('');
+            yearSelect.onchange = () => {
+                 const seasonsForYear = seasons.filter(s => s.year == yearSelect.value).sort((a,b) => b.season - a.season);
+                 seasonSelect.innerHTML = seasonsForYear.map(s => `<option value="${s.season}">Season ${s.season}</option>`).join('');
+                 loadSeasonData();
+            };
+            seasonSelect.onchange = loadSeasonData;
+            categorySelect.onchange = displayCategoryStats;
+        }
+        async function loadSeasonData() {
+            if (!currentDriver) return;
+            dashboardLoader.classList.remove('hidden');
+            statsContentDiv.classList.add('hidden');
+            const year = yearSelect.value;
+            const season = seasonSelect.value;
+            seasonData = await api.getSeasonStats(currentDriver.cust_id, year, season);
+            dashboardLoader.classList.add('hidden');
+            statsContentDiv.classList.remove('hidden');
+
+            // The iRacing API nests stats inside a `stats` object
+            const categories = Object.keys(seasonData.stats);
+            const mostPopularCategory = categories.reduce((a, b) => seasonData.stats[a].summary.starts > seasonData.stats[b].summary.starts ? a : b);
+            categorySelect.innerHTML = categories.map(cat => `<option value="${cat}" ${cat === mostPopularCategory ? 'selected' : ''}>${formatCategoryName(cat)}</option>`).join('');
+            displayCategoryStats();
+        }
+        function displayCategoryStats() {
+            const selectedCategory = categorySelect.value;
+            const stats = seasonData.stats[selectedCategory].summary;
+            document.getElementById('summary-stats').innerHTML = `
+                ${createStatCard('Starts', stats.starts)} ${createStatCard('Wins', stats.wins)}
+                ${createStatCard('Top 5s', stats.top5)} ${createStatCard('Poles', stats.poles)}
+                ${createStatCard('Avg Finish', stats.avg_finish_pos)} ${createStatCard('Incidents', stats.incidents)}
+            `;
+            populateLapTimeFilters();
+        }
+        function createStatCard(label, value) {
+            return `<div class="stat-card text-center"><p class="text-gray-400 text-sm font-medium">${label}</p><p class="text-3xl font-bold text-white">${value}</p></div>`;
+        }
+        function populateLapTimeFilters() {
+            const races = seasonData.stats[categorySelect.value].races;
+            const uniqueTracks = [...new Set(races.map(r => r.track))];
+            trackSelect.innerHTML = uniqueTracks.map(t => `<option value="${t}">${t}</option>`).join('');
+            trackSelect.onchange = updateCarFilterAndChart;
+            updateCarFilterAndChart();
+        }
+        function updateCarFilterAndChart() {
+            const selectedTrack = trackSelect.value;
+            const racesOnTrack = seasonData.stats[categorySelect.value].races.filter(r => r.track === selectedTrack);
+            const uniqueCars = [...new Set(racesOnTrack.map(r => r.car))];
+            carSelect.innerHTML = uniqueCars.map(c => `<option value="${c}">${c}</option>`).join('');
+            carSelect.onchange = updateLapTimeChart;
+            updateLapTimeChart();
+        }
+        function updateLapTimeChart() {
+            const selectedTrack = trackSelect.value;
+            const selectedCar = carSelect.value;
+            const raceData = seasonData.stats[categorySelect.value].races
+                .filter(r => r.track === selectedTrack && r.car === selectedCar)
+                .sort((a,b) => new Date(a.date) - new Date(b.date));
+            const labels = raceData.map(r => new Date(r.date).toLocaleDateString());
+            const data = raceData.map(r => lapTimeToSeconds(r.best_lap));
+            if (lapTimeChart) lapTimeChart.destroy();
+            const ctx = document.getElementById('lap-time-chart').getContext('2d');
+            lapTimeChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{ label: `Best Lap Time (${selectedCar} @ ${selectedTrack})`, data: data, borderColor: '#e60000', backgroundColor: 'rgba(230, 0, 0, 0.1)', fill: true, tension: 0.1 }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, scales: { y: { ticks: { color: '#9ca3af', callback: (value) => secondsToLapTime(value) }, grid: { color: 'rgba(255, 255, 255, 0.1)' } }, x: { ticks: { color: '#9ca3af' }, grid: { color: 'rgba(255, 255, 255, 0.1)' } } }, plugins: { legend: { labels: { color: '#f0f0f0' } }, tooltip: { callbacks: { label: (context) => secondsToLapTime(context.raw) } } } }
+            });
+        }
+        function formatCategoryName(name) { return name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()); }
+        function lapTimeToSeconds(lapTime) { const parts = lapTime.split(/[:.]/); return (+parts[0]) * 60 + (+parts[1]) + (+parts[2]) / 1000; }
+        function secondsToLapTime(seconds) { const min = Math.floor(seconds / 60); const sec = Math.floor(seconds % 60); const ms = Math.round((seconds - Math.floor(seconds)) * 1000); return `${String(min).padStart(2,'0')}:${String(sec).padStart(2,'0')}.${String(ms).padStart(3,'0')}`; }
+    });
+</script>
+</body>
+</html>
