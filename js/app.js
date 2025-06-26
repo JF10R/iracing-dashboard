@@ -108,9 +108,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Router --- //
     function handleRouteChange() {
+        // Corrected: Add a defensive check to ensure the main view elements exist in the HTML.
+        if (!searchView || !dashboardView) {
+            console.error("Fatal Error: Main view elements ('search-view' or 'dashboard-view') not found in the DOM. Please ensure your index.html file is up to date.");
+            document.body.innerHTML = '<p class="p-8 text-center text-red-500 font-bold">Fatal Error: Your index.html file is out of date. Cannot render the application.</p>';
+            return;
+        }
+
         const hash = window.location.hash || '#/';
         
-        // Corrected: Ensure search view is visible by default
         if (hash === '#/') {
             searchView.classList.remove('hidden');
             dashboardView.classList.add('hidden');
@@ -141,7 +147,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const headerContainer = document.getElementById('dashboard-header');
         const gridContainer = document.getElementById('dashboard-grid');
 
-        const uniqueYears = [...new Set(data.recap.allYears.map(y => y.year))].sort((a,b) => b-a);
+        // This assumes getDriverData returns an object with a `recap` property that has `allYears`
+        // We need to ensure the backend provides this data. For now, we'll create a fallback.
+        const yearsData = data.recap.allYears || [{ year: state.currentYear }];
+        const uniqueYears = [...new Set(yearsData.map(y => y.year))].sort((a,b) => b-a);
 
         headerContainer.innerHTML = `
             <div class="flex flex-wrap items-center justify-between gap-4">
@@ -210,7 +219,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.querySelectorAll('.search-result-item').forEach(item => {
                 item.addEventListener('click', (e) => {
                     searchModalContainer.classList.add('hidden');
-                    const custId = e.target.dataset.custId;
+                    const custId = e.target.dataset.dataset.custId;
                     window.location.hash = `#/driver/${custId}`;
                 });
             });
