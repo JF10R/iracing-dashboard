@@ -24,7 +24,7 @@ export async function onRequestPost(context) {
     const allCategories = await iRacingConstantsAPI.constants.getCategories();
 
     // Determine the most-raced category to fetch chart data for
-    let mostRacedCategory = { categoryId: 2, name: 'road' }; // Default to road
+    let mostRacedCategory = { categoryId: 5, name: 'sports_car' }; // Corrected: Default to Sports Car (categoryId 5 is a guess, name is what matters)
     if (recap && recap.races && recap.races.length > 0) {
         const categoryCounts = recap.races.reduce((acc, race) => {
             const categoryName = race.category.toLowerCase().replace(' ', '_');
@@ -40,7 +40,7 @@ export async function onRequestPost(context) {
     }
     
     // Fetch iRating and Safety Rating chart data for that category
-    const [iRatingData, safetyRatingData] = await Promise.all([
+    const [iRacingData, safetyRatingData] = await Promise.all([
         iRacingAPI.member.getChartData({ customerId: custId, categoryId: mostRacedCategory.categoryId, chartType: 1 }),
         iRacingAPI.member.getChartData({ customerId: custId, categoryId: mostRacedCategory.categoryId, chartType: 3 }),
     ]);
