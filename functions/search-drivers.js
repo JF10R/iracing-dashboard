@@ -1,3 +1,5 @@
+// By exporting onRequestPost, this function will ONLY run for POST requests.
+// This is the idiomatic Cloudflare Pages way and fixes the 405 error.
 export async function onRequestPost(context) {
   // context.env contains your secret variables
   const { IRACING_EMAIL, IRACING_PASSWORD } = context.env;
@@ -18,6 +20,13 @@ export async function onRequestPost(context) {
       body: JSON.stringify(apiRequestBody)
     });
 
+    // It's good practice to check if the API call itself was successful
+    if (!response.ok) {
+        const errorText = await response.text();
+        console.error("iRacing API error:", errorText);
+        return new Response(`Error from iRacing API: ${response.statusText}`, { status: response.status });
+    }
+
     const data = await response.json();
     
     // Return the data to your front-end
@@ -26,6 +35,7 @@ export async function onRequestPost(context) {
     });
 
   } catch (error) {
-    return new Response('Error fetching from iRacing API: ' + error.message, { status: 500 });
+    console.error("Function error:", error);
+    return new Response('Error in search-drivers function: ' + error.message, { status: 500 });
   }
 }

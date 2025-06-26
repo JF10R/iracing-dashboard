@@ -31,14 +31,19 @@ const api = {
     
     // Calls your /api/get-stats function
     getSeasonStats: async function(custId, year, season) {
-         const response = await fetch(`/api/get-stats?custId=${custId}&year=${year}&season=${season}`);
-         if (!response.ok) {
-            console.error("Failed to fetch stats");
-            alert('Error fetching season stats. Check the console for details.');
-            return {};
-         }
-         return await response.json();
-    }
+     // This needs to be a POST request to match the backend function
+     const response = await fetch('/api/get-stats', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ custId, year, season })
+     });
+     if (!response.ok) {
+        console.error("Failed to fetch stats");
+        alert('Error fetching season stats. Check the console for details.');
+        return {};
+     }
+     return await response.json();
+}
 };
 
 // --- Application Logic --- //

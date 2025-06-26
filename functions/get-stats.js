@@ -1,16 +1,16 @@
-export async function onRequest(context) {
+// This should also be an onRequestPost handler to match the front-end call
+export async function onRequestPost(context) {
   const { IRACING_EMAIL, IRACING_PASSWORD } = context.env;
-  const { searchParams } = new URL(context.request.url);
   
-  const custId = searchParams.get('custId');
-  const year = searchParams.get('year');
-  const season = searchParams.get('season');
-
-  if (!custId || !year || !season) {
-    return new Response('Missing required parameters', { status: 400 });
-  }
-
   try {
+    // Read parameters from the POST body, not the URL
+    const body = await context.request.json();
+    const { custId, year, season } = body;
+
+    if (!custId || !year || !season) {
+      return new Response('Missing required parameters in POST body', { status: 400 });
+    }
+
     const apiRequestBody = {
       email: IRACING_EMAIL,
       password: IRACING_PASSWORD,
@@ -26,12 +26,19 @@ export async function onRequest(context) {
       body: JSON.stringify(apiRequestBody)
     });
 
+    if (!response.ok) {
+        const errorText = await response.text();
+        console.error("iRacing API error:", errorText);
+        return new Response(`Error from iRacing API: ${response.statusText}`, { status: response.status });
+    }
+
     const data = await response.json();
     
     return new Response(JSON.stringify(data), {
       headers: { 'Content-Type': 'application/json' },
     });
   } catch (error) {
-    return new Response('Error fetching from iRacing API: ' + error.message, { status: 500 });
+    console.error("Function error:", error);
+    return new Response('Error in get-stats function: ' + error.message, { status: 500 });
   }
 }
