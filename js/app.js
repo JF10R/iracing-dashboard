@@ -13,9 +13,8 @@ const api = {
             alert('Error searching for drivers. Check the console for details.');
             return [];
         }
-        const result = await response.json();
-        // The actual API returns drivers in a nested object
-        return result || [];
+        // The library returns a direct array, so we return the result directly.
+        return await response.json();
     },
 
     // Calls your /api/get-seasons function
@@ -31,19 +30,18 @@ const api = {
     
     // Calls your /api/get-stats function
     getSeasonStats: async function(custId, year, season) {
-     // This needs to be a POST request to match the backend function
-     const response = await fetch('/api/get-stats', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ custId, year, season })
-     });
-     if (!response.ok) {
-        console.error("Failed to fetch stats");
-        alert('Error fetching season stats. Check the console for details.');
-        return {};
-     }
-     return await response.json();
-}
+        const response = await fetch('/api/get-stats', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ custId, year, season })
+        });
+        if (!response.ok) {
+            console.error("Failed to fetch stats");
+            alert('Error fetching season stats. Check the console for details.');
+            return {};
+        }
+        return await response.json();
+    }
 };
 
 // --- Application Logic --- //
@@ -67,6 +65,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Application state variables
     let currentDriver = null;
+    let allSeasonsData = [];
     let seasonData = null;
     let lapTimeChart = null;
     
@@ -86,8 +85,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 drivers.forEach(driver => {
                     const driverEl = document.createElement('div');
                     driverEl.className = 'p-3 hover:bg-gray-700 rounded-lg cursor-pointer';
-                    driverEl.textContent = driver.display_name;
-                    driverEl.dataset.custId = driver.cust_id;
+                    // Corrected: Use camelCase properties
+                    driverEl.textContent = driver.displayName;
+                    driverEl.dataset.custId = driver.custId;
                     driverEl.addEventListener('click', () => selectDriver(driver));
                     driverListDiv.appendChild(driverEl);
                 });
@@ -109,14 +109,17 @@ document.addEventListener('DOMContentLoaded', () => {
         currentDriver = driver;
         driverModal.classList.add('hidden');
         driverModal.classList.remove('flex');
-        document.getElementById('driver-name').textContent = driver.display_name;
-        document.getElementById('driver-cust-id').textContent = `Customer ID: ${driver.cust_id}`;
+        // Corrected: Use camelCase properties
+        document.getElementById('driver-name').textContent = driver.displayName;
+        document.getElementById('driver-cust-id').textContent = `Customer ID: ${driver.custId}`;
         dashboardDiv.classList.remove('hidden');
         dashboardLoader.classList.remove('hidden');
         statsContentDiv.classList.add('hidden');
-        const seasons = await api.getSeasons(driver.cust_id);
+        // Corrected: Use camelCase properties
+        const seasons = await api.getSeasons(driver.custId);
+        allSeasonsData = seasons; // Store all seasons
         populateSeasonFilters(seasons);
-        loadSeasonData();
+        await loadSeasonData();
     }
 
     function populateSeasonFilters(seasons) {
@@ -132,28 +135,34 @@ document.addEventListener('DOMContentLoaded', () => {
         statsContentDiv.classList.add('hidden');
         const year = yearSelect.value;
         const season = seasonSelect.value;
-        seasonData = await api.getSeasonStats(currentDriver.cust_id, year, season);
+        // Corrected: Use camelCase properties
+        seasonData = await api.getSeasonStats(currentDriver.custId, year, season);
         dashboardLoader.classList.add('hidden');
         statsContentDiv.classList.remove('hidden');
 
-        if (seasonData) {
-            const categories = Object.keys(seasonData); // No .stats
-            if (categories.length > 0) {
-                const mostPopularCategory = categories.reduce((a, b) => seasonData[a].summary.starts > seasonData[b].summary.starts ? a : b); // No .stats
-                categorySelect.innerHTML = categories.map(cat => `<option value="${cat}" ${cat === mostPopularCategory ? 'selected' : ''}>${formatCategoryName(cat)}</option>`).join('');
-                displayCategoryStats();
-            }
+        // Corrected: The library returns the stats object directly
+        if (seasonData && Object.keys(seasonData).length > 0) {
+            const categories = Object.keys(seasonData);
+            const mostPopularCategory = categories.reduce((a, b) => seasonData[a].summary.starts > seasonData[b].summary.starts ? a : b);
+            categorySelect.innerHTML = categories.map(cat => `<option value="${cat}" ${cat === mostPopularCategory ? 'selected' : ''}>${formatCategoryName(cat)}</option>`).join('');
+            displayCategoryStats();
+        } else {
+            document.getElementById('summary-stats').innerHTML = `<p class="col-span-full text-center text-gray-400">No stats found for this season.</p>`;
+            document.getElementById('track-select').innerHTML = '';
+            document.getElementById('car-select').innerHTML = '';
+            if(lapTimeChart) lapTimeChart.destroy();
         }
     }
 
     function displayCategoryStats() {
         const selectedCategory = categorySelect.value;
-        if (!seasonData || !seasonData[selectedCategory]) return; // Corrected check
-        const stats = seasonData[selectedCategory].summary; // No .stats
+        // Corrected: Check for seasonData and the selected category
+        if (!seasonData || !seasonData[selectedCategory]) return;
+        const stats = seasonData[selectedCategory].summary;
         document.getElementById('summary-stats').innerHTML = `
             ${createStatCard('Starts', stats.starts)} ${createStatCard('Wins', stats.wins)}
             ${createStatCard('Top 5s', stats.top5)} ${createStatCard('Poles', stats.poles)}
-            ${createStatCard('Avg Finish', stats.avg_finish_pos)} ${createStatCard('Incidents', stats.incidents)}
+            ${createStatCard('Avg Finish', stats.avgFinish)} ${createStatCard('Incidents', stats.incidents)}
         `;
         populateLapTimeFilters();
     }
@@ -163,17 +172,24 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function populateLapTimeFilters() {
+        // Corrected: Access races from the correct object property
         const races = seasonData[categorySelect.value].races;
-        if (!races) return;
-        const uniqueTracks = [...new Set(races.map(r => r.track))];
+        if (!races || races.length === 0) {
+             document.getElementById('track-select').innerHTML = '<option>No tracks raced</option>';
+             document.getElementById('car-select').innerHTML = '';
+             if(lapTimeChart) lapTimeChart.destroy();
+            return;
+        };
+        const uniqueTracks = [...new Set(races.map(r => r.track.trackName))];
         trackSelect.innerHTML = uniqueTracks.map(t => `<option value="${t}">${t}</option>`).join('');
+        updateCarFilterAndChart();
     }
 
     function updateCarFilterAndChart() {
         if (!seasonData[categorySelect.value].races) return;
         const selectedTrack = trackSelect.value;
-        const racesOnTrack = seasonData[categorySelect.value].races.filter(r => r.track === selectedTrack);
-        const uniqueCars = [...new Set(racesOnTrack.map(r => r.car))];
+        const racesOnTrack = seasonData[categorySelect.value].races.filter(r => r.track.trackName === selectedTrack);
+        const uniqueCars = [...new Set(racesOnTrack.map(r => r.car.carName))];
         carSelect.innerHTML = uniqueCars.map(c => `<option value="${c}">${c}</option>`).join('');
         updateLapTimeChart();
     }
@@ -183,10 +199,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const selectedTrack = trackSelect.value;
         const selectedCar = carSelect.value;
         const raceData = seasonData[categorySelect.value].races
-            .filter(r => r.track === selectedTrack && r.car === selectedCar)
-            .sort((a,b) => new Date(a.date) - new Date(b.date));
-        const labels = raceData.map(r => new Date(r.date).toLocaleDateString());
-        const data = raceData.map(r => lapTimeToSeconds(r.best_lap));
+            .filter(r => r.track.trackName === selectedTrack && r.car.carName === selectedCar)
+            .sort((a,b) => new Date(a.startTime) - new Date(b.startTime));
+        
+        const labels = raceData.map(r => new Date(r.startTime).toLocaleDateString());
+        const data = raceData.map(r => lapTimeToSeconds(r.bestLapTime));
+        
         if (lapTimeChart) lapTimeChart.destroy();
         const ctx = document.getElementById('lap-time-chart').getContext('2d');
         lapTimeChart = new Chart(ctx, {
@@ -201,8 +219,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- UTILITY FUNCTIONS --- //
     function formatCategoryName(name) { return name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()); }
-    function lapTimeToSeconds(lapTime) { const parts = lapTime.split(/[:.]/); return (+parts[0]) * 60 + (+parts[1]) + (+parts[2]) / 1000; }
-    function secondsToLapTime(seconds) { const min = Math.floor(seconds / 60); const sec = Math.floor(seconds % 60); const ms = Math.round((seconds - Math.floor(seconds)) * 1000); return `${String(min).padStart(2,'0')}:${String(sec).padStart(2,'0')}.${String(ms).padStart(3,'0')}`; }
+    function lapTimeToSeconds(lapTime) {
+        if (typeof lapTime !== 'string' || !lapTime.includes(':')) return 0;
+        const parts = lapTime.split(/[:.]/);
+        if(parts.length < 3) return 0;
+        return (+parts[0]) * 60 + (+parts[1]) + (+parts[2]) / 1000;
+    }
+    function secondsToLapTime(seconds) {
+        if (typeof seconds !== 'number' || isNaN(seconds)) return 'N/A';
+        const min = Math.floor(seconds / 60);
+        const sec = Math.floor(seconds % 60);
+        const ms = Math.round((seconds - Math.floor(seconds)) * 1000);
+        return `${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}.${String(ms).padStart(3, '0')}`;
+    }
 
     // --- EVENT LISTENERS --- //
     searchBtn.addEventListener('click', handleSearch);
@@ -214,8 +243,7 @@ document.addEventListener('DOMContentLoaded', () => {
         driverModal.classList.remove('flex');
     });
     yearSelect.onchange = () => {
-        const seasons = seasonData.allSeasons || [];
-        const seasonsForYear = seasons.filter(s => s.year == yearSelect.value).sort((a,b) => b.season - a.season);
+        const seasonsForYear = allSeasonsData.filter(s => s.year == yearSelect.value).sort((a,b) => b.season - a.season);
         seasonSelect.innerHTML = seasonsForYear.map(s => `<option value="${s.season}">Season ${s.season}</option>`).join('');
         loadSeasonData();
     };
