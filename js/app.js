@@ -15,7 +15,7 @@ const api = {
         }
         const result = await response.json();
         // The actual API returns drivers in a nested object
-        return result.drivers || [];
+        return result || [];
     },
 
     // Calls your /api/get-seasons function
