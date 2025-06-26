@@ -1,0 +1,14 @@
+{
+  "name": "iracing-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "deploy": "wrangler pages deploy"
+  },
+  "dependencies": {
+    "iracing-api": "^1.2.3"
+  },
+  "devDependencies": {
+    "wrangler": "^3.0.0"
+  }
+}

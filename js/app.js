@@ -136,10 +136,10 @@ document.addEventListener('DOMContentLoaded', () => {
         dashboardLoader.classList.add('hidden');
         statsContentDiv.classList.remove('hidden');
 
-        if (seasonData && seasonData.stats) {
-            const categories = Object.keys(seasonData.stats);
+        if (seasonData) {
+            const categories = Object.keys(seasonData); // No .stats
             if (categories.length > 0) {
-                const mostPopularCategory = categories.reduce((a, b) => seasonData.stats[a].summary.starts > seasonData.stats[b].summary.starts ? a : b);
+                const mostPopularCategory = categories.reduce((a, b) => seasonData[a].summary.starts > seasonData[b].summary.starts ? a : b); // No .stats
                 categorySelect.innerHTML = categories.map(cat => `<option value="${cat}" ${cat === mostPopularCategory ? 'selected' : ''}>${formatCategoryName(cat)}</option>`).join('');
                 displayCategoryStats();
             }
@@ -148,8 +148,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function displayCategoryStats() {
         const selectedCategory = categorySelect.value;
-        if (!seasonData.stats || !seasonData.stats[selectedCategory]) return;
-        const stats = seasonData.stats[selectedCategory].summary;
+        if (!seasonData || !seasonData[selectedCategory]) return; // Corrected check
+        const stats = seasonData[selectedCategory].summary; // No .stats
         document.getElementById('summary-stats').innerHTML = `
             ${createStatCard('Starts', stats.starts)} ${createStatCard('Wins', stats.wins)}
             ${createStatCard('Top 5s', stats.top5)} ${createStatCard('Poles', stats.poles)}
@@ -163,26 +163,26 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function populateLapTimeFilters() {
-        const races = seasonData.stats[categorySelect.value].races;
+        const races = seasonData[categorySelect.value].races;
         if (!races) return;
         const uniqueTracks = [...new Set(races.map(r => r.track))];
         trackSelect.innerHTML = uniqueTracks.map(t => `<option value="${t}">${t}</option>`).join('');
     }
 
     function updateCarFilterAndChart() {
-        if (!seasonData.stats[categorySelect.value].races) return;
+        if (!seasonData[categorySelect.value].races) return;
         const selectedTrack = trackSelect.value;
-        const racesOnTrack = seasonData.stats[categorySelect.value].races.filter(r => r.track === selectedTrack);
+        const racesOnTrack = seasonData[categorySelect.value].races.filter(r => r.track === selectedTrack);
         const uniqueCars = [...new Set(racesOnTrack.map(r => r.car))];
         carSelect.innerHTML = uniqueCars.map(c => `<option value="${c}">${c}</option>`).join('');
         updateLapTimeChart();
     }
 
     function updateLapTimeChart() {
-        if (!seasonData.stats[categorySelect.value].races) return;
+        if (!seasonData[categorySelect.value].races) return;
         const selectedTrack = trackSelect.value;
         const selectedCar = carSelect.value;
-        const raceData = seasonData.stats[categorySelect.value].races
+        const raceData = seasonData[categorySelect.value].races
             .filter(r => r.track === selectedTrack && r.car === selectedCar)
             .sort((a,b) => new Date(a.date) - new Date(b.date));
         const labels = raceData.map(r => new Date(r.date).toLocaleDateString());

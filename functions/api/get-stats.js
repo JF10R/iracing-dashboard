@@ -1,8 +1,9 @@
-export async function onRequestPost(context) {
-  const { IRACING_COOKIE } = context.env;
+import { iRacing } from 'iracing-api';
 
-  if (!IRACING_COOKIE) {
-    return new Response('IRACING_COOKIE secret not configured', { status: 500 });
+export async function onRequestPost(context) {
+  const { IRACING_EMAIL, IRACING_PASSWORD } = context.env;
+  if (!IRACING_EMAIL || !IRACING_PASSWORD) {
+    return new Response('IRACING_EMAIL and/or IRACING_PASSWORD secrets not configured', { status: 500 });
   }
   
   try {
@@ -13,29 +14,22 @@ export async function onRequestPost(context) {
       return new Response('Missing required parameters in POST body', { status: 400 });
     }
 
-    // Pass the cookie in the headers
-    const response = await fetch("https://members-api.iracing.com/stats/season_stats", {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Cookie': `irsso_membersv2=${IRACING_COOKIE};`
-      },
-      body: JSON.stringify({
-        cust_id: parseInt(custId),
-        year: parseInt(year),
-        season: parseInt(season),
-        category_id: [1, 2, 3, 4, 5]
-      })
+    const iRacingAPI = new iRacing();
+    await iRacingAPI.login(IRACING_EMAIL, IRACING_PASSWORD);
+
+    // Use the library's function. Note the parameter names match the library's spec.
+    const data = await iRacingAPI.getSeasonStats({ 
+      customerId: parseInt(custId), 
+      year: parseInt(year),
+      season: parseInt(season)
+    });
+    
+    return new Response(JSON.stringify(data), {
+      headers: { 'Content-Type': 'application/json' },
     });
 
-    if (!response.ok) {
-        const errorText = await response.text();
-        return new Response(`Error from iRacing API: ${errorText}`, { status: response.status });
-    }
-
-    const data = await response.json();
-    return new Response(JSON.stringify(data), { headers: { 'Content-Type': 'application/json' } });
   } catch (error) {
+    console.error("Function error:", error);
     return new Response('Error in get-stats function: ' + error.message, { status: 500 });
   }
 }
