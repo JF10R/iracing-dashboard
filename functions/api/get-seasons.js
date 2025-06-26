@@ -23,20 +23,15 @@ export async function onRequest(context) {
 
   try {
     const iRacingAPI = new iRacing();
-    // This library endpoint requires authentication to access stats.
     await iRacingAPI.login(IRACING_EMAIL, IRACING_PASSWORD);
     
-    // Use the member's yearly stats to get the years they have competed.
     const data = await iRacingAPI.stats.getMemberYearlyStats({ customerId: parseInt(custId) });
     
-    // The data is an object with years as keys. We need to format it
-    // into the array structure the front-end expects: [{ year: Y, season: S }, ...]
-    const stats = data.stats;
-    const years = Object.keys(stats).map(year => parseInt(year, 10));
+    // Corrected: The library returns an array of stats objects, each with a 'year' property.
+    const years = data.stats.map(stat => stat.year);
     const seasons = [];
 
-    // For each year the driver was active, create entries for all 4 seasons
-    // so the user can select any of them.
+    // For each year the driver was active, create entries for all 4 seasons.
     years.forEach(year => {
         seasons.push({ year: year, season: 1 });
         seasons.push({ year: year, season: 2 });

@@ -1,7 +1,5 @@
 // --- API Service --- //
-// This section calls your backend API routes, which are created as Cloudflare Functions.
 const api = {
-    // Calls your /api/search-drivers function
     searchDrivers: async function(query) {
         const response = await fetch('/api/search-drivers', {
             method: 'POST',
@@ -15,8 +13,6 @@ const api = {
         }
         return await response.json();
     },
-
-    // Calls your /api/get-seasons function
     getSeasons: async function(custId) {
         const response = await fetch(`/api/get-seasons?custId=${custId}`);
         if (!response.ok) {
@@ -26,8 +22,6 @@ const api = {
         }
         return await response.json();
     },
-    
-    // Calls your /api/get-stats function
     getSeasonStats: async function(custId, year, season) {
         const response = await fetch('/api/get-stats', {
             method: 'POST',
@@ -37,7 +31,7 @@ const api = {
         if (!response.ok) {
             console.error("Failed to fetch stats");
             alert('Error fetching season stats. Check the console for details.');
-            return {};
+            return null;
         }
         return await response.json();
     }
@@ -45,7 +39,7 @@ const api = {
 
 // --- Application Logic --- //
 document.addEventListener('DOMContentLoaded', () => {
-    // Get references to all DOM elements
+    // --- DOM Element References --- //
     const searchSection = document.getElementById('search-section');
     const searchBtn = document.getElementById('search-btn');
     const driverSearchInput = document.getElementById('driver-search');
@@ -62,16 +56,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const trackSelect = document.getElementById('track-select');
     const carSelect = document.getElementById('car-select');
     
-    // Application state variables
+    // --- Application State --- //
     let currentDriver = null;
     let allSeasonsData = [];
-    let seasonData = null;
+    let seasonRecapData = null;
     let lapTimeChart = null;
     
-    // Initialize the main view
+    // --- Initial Setup --- //
     searchSection.classList.remove('hidden');
     document.getElementById('header-subtitle').textContent = "Enter a driver's name to view their racing statistics.";
 
+    // --- Core Functions --- //
     const handleSearch = async () => {
         const query = driverSearchInput.value.trim();
         if (!query) return;
@@ -112,8 +107,9 @@ document.addEventListener('DOMContentLoaded', () => {
         dashboardDiv.classList.remove('hidden');
         dashboardLoader.classList.remove('hidden');
         statsContentDiv.classList.add('hidden');
+        
         const seasons = await api.getSeasons(driver.custId);
-        allSeasonsData = seasons; // Store all seasons
+        allSeasonsData = seasons;
         populateSeasonFilters(seasons);
         await loadSeasonData();
     }
@@ -131,87 +127,94 @@ document.addEventListener('DOMContentLoaded', () => {
         statsContentDiv.classList.add('hidden');
         const year = yearSelect.value;
         const season = seasonSelect.value;
-        seasonData = await api.getSeasonStats(currentDriver.custId, year, season);
+        
+        seasonRecapData = await api.getSeasonStats(currentDriver.custId, year, season);
         dashboardLoader.classList.add('hidden');
         statsContentDiv.classList.remove('hidden');
 
-        if (seasonData && Object.keys(seasonData).length > 0) {
-            const categories = Object.keys(seasonData);
-            const mostPopularCategory = categories.reduce((a, b) => seasonData[a].summary.starts > seasonData[b].summary.starts ? a : b);
-            categorySelect.innerHTML = categories.map(cat => `<option value="${cat}" ${cat === mostPopularCategory ? 'selected' : ''}>${formatCategoryName(cat)}</option>`).join('');
-            displayCategoryStats();
+        if (seasonRecapData && seasonRecapData.stats) {
+            displayOverallStats(seasonRecapData.stats);
+            populateCategoryFilter(seasonRecapData.races);
+            updateLapTimeFilters();
         } else {
             document.getElementById('summary-stats').innerHTML = `<p class="col-span-full text-center text-gray-400">No stats found for this season.</p>`;
+            document.getElementById('category-select').innerHTML = '';
             document.getElementById('track-select').innerHTML = '';
             document.getElementById('car-select').innerHTML = '';
-            if(lapTimeChart) lapTimeChart.destroy();
+            if(lapTimeChart) { lapTimeChart.destroy(); lapTimeChart = null; }
         }
     }
 
-    function displayCategoryStats() {
-        const selectedCategory = categorySelect.value;
-        if (!seasonData || !seasonData[selectedCategory]) return;
-        const stats = seasonData[selectedCategory].summary;
+    function displayOverallStats(stats) {
         document.getElementById('summary-stats').innerHTML = `
             ${createStatCard('Starts', stats.starts)} ${createStatCard('Wins', stats.wins)}
             ${createStatCard('Top 5s', stats.top5)} ${createStatCard('Poles', stats.poles)}
             ${createStatCard('Avg Finish', stats.avgFinish)} ${createStatCard('Incidents', stats.incidents)}
         `;
-        populateLapTimeFilters();
     }
 
-    function createStatCard(label, value) {
-        return `<div class="stat-card text-center"><p class="text-gray-400 text-sm font-medium">${label}</p><p class="text-3xl font-bold text-white">${value !== undefined ? value : 'N/A'}</p></div>`;
-    }
-
-    function populateLapTimeFilters() {
-        const races = seasonData[categorySelect.value].races;
+    function populateCategoryFilter(races) {
         if (!races || races.length === 0) {
-             document.getElementById('track-select').innerHTML = '<option>No tracks raced</option>';
-             document.getElementById('car-select').innerHTML = '';
-             if(lapTimeChart) lapTimeChart.destroy();
+            categorySelect.innerHTML = '<option>No categories</option>';
+            return;
+        }
+        const uniqueCategories = [...new Set(races.map(r => r.category))];
+        categorySelect.innerHTML = uniqueCategories.map(cat => `<option value="${cat}">${formatCategoryName(cat)}</option>`).join('');
+    }
+
+    function updateLapTimeFilters() {
+        const selectedCategory = categorySelect.value;
+        if (!seasonRecapData || !seasonRecapData.races) return;
+
+        const racesInCategory = seasonRecapData.races.filter(r => r.category === selectedCategory);
+        
+        if (!racesInCategory || racesInCategory.length === 0) {
+             trackSelect.innerHTML = '<option>No tracks raced</option>';
+             carSelect.innerHTML = '';
+             if(lapTimeChart) { lapTimeChart.destroy(); lapTimeChart = null; }
             return;
         };
-        const uniqueTracks = [...new Set(races.map(r => r.track.trackName))];
-        trackSelect.innerHTML = uniqueTracks.map(t => `<option value="${t}">${t}</option>`).join('');
-        updateCarFilterAndChart();
-    }
 
-    function updateCarFilterAndChart() {
-        const selectedCategoryData = seasonData[categorySelect.value];
-        if (!selectedCategoryData || !selectedCategoryData.races) return;
+        const uniqueTracks = [...new Set(racesInCategory.map(r => r.track.trackName))];
+        trackSelect.innerHTML = uniqueTracks.map(t => `<option value="${t}">${t}</option>`).join('');
+        updateCarFilter();
+    }
+    
+    function updateCarFilter() {
+        const selectedCategory = categorySelect.value;
         const selectedTrack = trackSelect.value;
-        const racesOnTrack = selectedCategoryData.races.filter(r => r.track.trackName === selectedTrack);
+        if (!seasonRecapData || !seasonRecapData.races) return;
+
+        const racesOnTrack = seasonRecapData.races.filter(r => r.category === selectedCategory && r.track.trackName === selectedTrack);
         const uniqueCars = [...new Set(racesOnTrack.map(r => r.car.carName))];
         carSelect.innerHTML = uniqueCars.map(c => `<option value="${c}">${c}</option>`).join('');
         updateLapTimeChart();
     }
 
     function updateLapTimeChart() {
-        const selectedCategoryData = seasonData[categorySelect.value];
-        if (!selectedCategoryData || !selectedCategoryData.races) return;
+        const selectedCategory = categorySelect.value;
         const selectedTrack = trackSelect.value;
         const selectedCar = carSelect.value;
-        const raceData = selectedCategoryData.races
-            .filter(r => r.track.trackName === selectedTrack && r.car.carName === selectedCar)
+        if (!seasonRecapData || !seasonRecapData.races) return;
+
+        const raceData = seasonRecapData.races
+            .filter(r => r.category === selectedCategory && r.track.trackName === selectedTrack && r.car.carName === selectedCar)
             .sort((a,b) => new Date(a.startTime) - new Date(b.startTime));
         
         const labels = raceData.map(r => new Date(r.startTime).toLocaleDateString());
         const data = raceData.map(r => lapTimeToSeconds(r.bestLapTime));
         
-        if (lapTimeChart) lapTimeChart.destroy();
+        if (lapTimeChart) { lapTimeChart.destroy(); }
         const ctx = document.getElementById('lap-time-chart').getContext('2d');
         lapTimeChart = new Chart(ctx, {
             type: 'line',
-            data: {
-                labels: labels,
-                datasets: [{ label: `Best Lap Time (${selectedCar} @ ${selectedTrack})`, data: data, borderColor: '#e60000', backgroundColor: 'rgba(230, 0, 0, 0.1)', fill: true, tension: 0.1 }]
-            },
+            data: { labels, datasets: [{ label: `Best Lap Time (${selectedCar} @ ${selectedTrack})`, data, borderColor: '#e60000', backgroundColor: 'rgba(230, 0, 0, 0.1)', fill: true, tension: 0.1 }] },
             options: { responsive: true, maintainAspectRatio: false, scales: { y: { ticks: { color: '#9ca3af', callback: (value) => secondsToLapTime(value) }, grid: { color: 'rgba(255, 255, 255, 0.1)' } }, x: { ticks: { color: '#9ca3af' }, grid: { color: 'rgba(255, 255, 255, 0.1)' } } }, plugins: { legend: { labels: { color: '#f0f0f0' } }, tooltip: { callbacks: { label: (context) => secondsToLapTime(context.raw) } } } }
         });
     }
 
-    // --- UTILITY FUNCTIONS --- //
+    // --- Utility Functions --- //
+    function createStatCard(label, value) { return `<div class="stat-card text-center"><p class="text-gray-400 text-sm font-medium">${label}</p><p class="text-3xl font-bold text-white">${value !== undefined ? value : 'N/A'}</p></div>`; }
     function formatCategoryName(name) { return name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()); }
     function lapTimeToSeconds(lapTime) {
         if (typeof lapTime !== 'string' || !lapTime.includes(':')) return 0;
@@ -229,20 +232,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- EVENT LISTENERS --- //
     searchBtn.addEventListener('click', handleSearch);
-    driverSearchInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') handleSearch();
-    });
-    closeModalBtn.addEventListener('click', () => {
-        driverModal.classList.add('hidden');
-        driverModal.classList.remove('flex');
-    });
-    yearSelect.onchange = () => {
+    driverSearchInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') handleSearch(); });
+    closeModalBtn.addEventListener('click', () => { driverModal.classList.add('hidden'); driverModal.classList.remove('flex'); });
+    yearSelect.addEventListener('change', () => {
         const seasonsForYear = allSeasonsData.filter(s => s.year == yearSelect.value).sort((a,b) => b.season - a.season);
         seasonSelect.innerHTML = seasonsForYear.map(s => `<option value="${s.season}">Season ${s.season}</option>`).join('');
         loadSeasonData();
-    };
-    seasonSelect.onchange = loadSeasonData;
-    categorySelect.onchange = displayCategoryStats;
-    trackSelect.onchange = updateCarFilterAndChart;
-    carSelect.onchange = updateLapTimeChart;
+    });
+    seasonSelect.addEventListener('change', loadSeasonData);
+    categorySelect.addEventListener('change', updateLapTimeFilters);
+    trackSelect.addEventListener('change', updateCarFilter);
+    carSelect.addEventListener('change', updateLapTimeChart);
 });
