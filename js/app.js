@@ -34,6 +34,15 @@ const api = {
             return null;
         }
         return await response.json();
+    },
+    // New function to get all categories
+    getCategories: async function() {
+        const response = await fetch('/api/get-categories');
+        if (!response.ok) {
+            console.error("Failed to fetch categories");
+            return [];
+        }
+        return await response.json();
     }
 };
 
@@ -59,12 +68,19 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Application State --- //
     let currentDriver = null;
     let allSeasonsData = [];
+    let allCategories = [];
     let seasonRecapData = null;
     let lapTimeChart = null;
     
     // --- Initial Setup --- //
-    searchSection.classList.remove('hidden');
-    document.getElementById('header-subtitle').textContent = "Enter a driver's name to view their racing statistics.";
+    const initializeApp = async () => {
+        searchSection.classList.remove('hidden');
+        document.getElementById('header-subtitle').textContent = "Enter a driver's name to view their racing statistics.";
+        
+        // Fetch all categories on page load and populate the dropdown
+        allCategories = await api.getCategories();
+        populateCategoryFilter(allCategories);
+    };
 
     // --- Core Functions --- //
     const handleSearch = async () => {
@@ -115,10 +131,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function populateSeasonFilters(seasons) {
-        const uniqueYears = [...new Set(seasons.map(s => s.year))].sort((a,b) => b-a);
+        const uniqueYears = [...new Set(seasons.map(s => s.year))].sort((a, b) => b - a);
         yearSelect.innerHTML = uniqueYears.map(y => `<option value="${y}">${y}</option>`).join('');
-        const seasonsForYear = seasons.filter(s => s.year == yearSelect.value).sort((a,b) => b.season - a.season);
-        seasonSelect.innerHTML = seasonsForYear.map(s => `<option value="${s.season}">Season ${s.season}</option>`).join('');
+        seasonSelect.innerHTML = [4, 3, 2, 1].map(s => `<option value="${s}">Season ${s}</option>`).join('');
+    }
+
+    // Corrected: Populates from a static list of all categories
+    function populateCategoryFilter(categories) {
+        if (!categories || categories.length === 0) {
+            categorySelect.innerHTML = '<option>No categories found</option>';
+            return;
+        }
+        // The constants endpoint returns objects with a 'label' property for the name
+        categorySelect.innerHTML = categories.map(cat => `<option value="${cat.label}">${formatCategoryName(cat.label)}</option>`).join('');
     }
 
     async function loadSeasonData() {
@@ -134,11 +159,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (seasonRecapData && seasonRecapData.stats) {
             displayOverallStats(seasonRecapData.stats);
-            populateCategoryFilter(seasonRecapData.races);
+            // The category dropdown is now static, so we just update the chart filters
             updateLapTimeFilters();
         } else {
             document.getElementById('summary-stats').innerHTML = `<p class="col-span-full text-center text-gray-400">No stats found for this season.</p>`;
-            document.getElementById('category-select').innerHTML = '';
             document.getElementById('track-select').innerHTML = '';
             document.getElementById('car-select').innerHTML = '';
             if(lapTimeChart) { lapTimeChart.destroy(); lapTimeChart = null; }
@@ -153,23 +177,19 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
     }
 
-    function populateCategoryFilter(races) {
-        if (!races || races.length === 0) {
-            categorySelect.innerHTML = '<option>No categories</option>';
-            return;
-        }
-        const uniqueCategories = [...new Set(races.map(r => r.category))];
-        categorySelect.innerHTML = uniqueCategories.map(cat => `<option value="${cat}">${formatCategoryName(cat)}</option>`).join('');
-    }
-
     function updateLapTimeFilters() {
         const selectedCategory = categorySelect.value;
-        if (!seasonRecapData || !seasonRecapData.races) return;
+        if (!seasonRecapData || !seasonRecapData.races) {
+             trackSelect.innerHTML = '<option>No tracks raced</option>';
+             carSelect.innerHTML = '';
+             if(lapTimeChart) { lapTimeChart.destroy(); lapTimeChart = null; }
+            return;
+        };
 
-        const racesInCategory = seasonRecapData.races.filter(r => r.category === selectedCategory);
+        const racesInCategory = seasonRecapData.races.filter(r => r.category.toLowerCase().replace(' ', '_') === selectedCategory);
         
         if (!racesInCategory || racesInCategory.length === 0) {
-             trackSelect.innerHTML = '<option>No tracks raced</option>';
+             trackSelect.innerHTML = `<option>No ${formatCategoryName(selectedCategory)} races</option>`;
              carSelect.innerHTML = '';
              if(lapTimeChart) { lapTimeChart.destroy(); lapTimeChart = null; }
             return;
@@ -185,7 +205,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const selectedTrack = trackSelect.value;
         if (!seasonRecapData || !seasonRecapData.races) return;
 
-        const racesOnTrack = seasonRecapData.races.filter(r => r.category === selectedCategory && r.track.trackName === selectedTrack);
+        const racesOnTrack = seasonRecapData.races.filter(r => r.category.toLowerCase().replace(' ', '_') === selectedCategory && r.track.trackName === selectedTrack);
         const uniqueCars = [...new Set(racesOnTrack.map(r => r.car.carName))];
         carSelect.innerHTML = uniqueCars.map(c => `<option value="${c}">${c}</option>`).join('');
         updateLapTimeChart();
@@ -198,7 +218,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!seasonRecapData || !seasonRecapData.races) return;
 
         const raceData = seasonRecapData.races
-            .filter(r => r.category === selectedCategory && r.track.trackName === selectedTrack && r.car.carName === selectedCar)
+            .filter(r => r.category.toLowerCase().replace(' ', '_') === selectedCategory && r.track.trackName === selectedTrack && r.car.carName === selectedCar)
             .sort((a,b) => new Date(a.startTime) - new Date(b.startTime));
         
         const labels = raceData.map(r => new Date(r.startTime).toLocaleDateString());
@@ -234,13 +254,12 @@ document.addEventListener('DOMContentLoaded', () => {
     searchBtn.addEventListener('click', handleSearch);
     driverSearchInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') handleSearch(); });
     closeModalBtn.addEventListener('click', () => { driverModal.classList.add('hidden'); driverModal.classList.remove('flex'); });
-    yearSelect.addEventListener('change', () => {
-        const seasonsForYear = allSeasonsData.filter(s => s.year == yearSelect.value).sort((a,b) => b.season - a.season);
-        seasonSelect.innerHTML = seasonsForYear.map(s => `<option value="${s.season}">Season ${s.season}</option>`).join('');
-        loadSeasonData();
-    });
+    yearSelect.addEventListener('change', loadSeasonData);
     seasonSelect.addEventListener('change', loadSeasonData);
     categorySelect.addEventListener('change', updateLapTimeFilters);
     trackSelect.addEventListener('change', updateCarFilter);
     carSelect.addEventListener('change', updateLapTimeChart);
+
+    // Run the initialization
+    initializeApp();
 });
