@@ -26,8 +26,8 @@ export async function onRequestPost(context) {
     const iRacingAPI = new iRacing();
     await iRacingAPI.login(IRACING_EMAIL, IRACING_PASSWORD);
 
-    // Corrected: Use the documented `stats.getSeasonStats` method
-    const data = await iRacingAPI.stats.getSeasonStats({ 
+    // Corrected: Use the documented `stats.getMemberRecap` method
+    const data = await iRacingAPI.stats.getMemberRecap({ 
       customerId: parseInt(custId), 
       year: parseInt(year),
       season: parseInt(season)
@@ -36,6 +36,7 @@ export async function onRequestPost(context) {
     return new Response(JSON.stringify(data), {
       headers: { 'Content-Type': 'application/json' },
     });
+
   } catch (error) {
     console.error("Function error:", { message: error.message, stack: error.stack });
     return new Response('Error in get-stats function: ' + error.message, { status: 500 });
