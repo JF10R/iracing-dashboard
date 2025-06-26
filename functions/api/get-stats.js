@@ -14,10 +14,16 @@ export async function onRequestPost(context) {
       return new Response('Missing required parameters in POST body', { status: 400 });
     }
 
-    const iRacingAPI = new iRacing();
-    await iRacingAPI.login(IRACING_EMAIL, IRACING_PASSWORD);
+    const iRacingAPI = new iRacing({
+      axiosOptions: {
+        headers: {
+          'Cache-Control': null,
+          'Pragma': null,
+        }
+      }
+    });
 
-    // Use the library's function. Note the parameter names match the library's spec.
+    await iRacingAPI.login(IRACING_EMAIL, IRACING_PASSWORD);
     const data = await iRacingAPI.getSeasonStats({ 
       customerId: parseInt(custId), 
       year: parseInt(year),

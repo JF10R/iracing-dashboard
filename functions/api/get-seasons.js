@@ -9,9 +9,15 @@ export async function onRequest(context) {
   }
 
   try {
-    const iRacingAPI = new iRacing();
-    // This specific endpoint in the library doesn't require prior authentication,
-    // so we don't need to call the login() method here.
+    const iRacingAPI = new iRacing({
+      axiosOptions: {
+        headers: {
+          'Cache-Control': null,
+          'Pragma': null,
+        }
+      }
+    });
+    
     const data = await iRacingAPI.getSeasons({ customerId: parseInt(custId) });
     
     return new Response(JSON.stringify(data), {
