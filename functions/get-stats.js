@@ -34,3 +34,4 @@ export async function onRequest(context) {
   } catch (error) {
     return new Response('Error fetching from iRacing API: ' + error.message, { status: 500 });
   }
+}
