@@ -1,11 +1,7 @@
-export async function onRequest(context) {
+export async function onRequestPost(context) {
+  // context.env contains your secret variables
   const { IRACING_EMAIL, IRACING_PASSWORD } = context.env;
   
-  // Only allow POST requests for this endpoint
-  if (context.request.method !== 'POST') {
-    return new Response('Method Not Allowed', { status: 405 });
-  }
-
   try {
     const body = await context.request.json();
     const searchTerm = body.searchTerm;
