@@ -25,7 +25,9 @@ export async function onRequestPost(context) {
 
     const iRacingAPI = new iRacing();
     await iRacingAPI.login(IRACING_EMAIL, IRACING_PASSWORD);
-    const data = await iRacingAPI.getSeasonStats({ 
+
+    // Corrected: Use the documented `stats.getSeasonStats` method
+    const data = await iRacingAPI.stats.getSeasonStats({ 
       customerId: parseInt(custId), 
       year: parseInt(year),
       season: parseInt(season)

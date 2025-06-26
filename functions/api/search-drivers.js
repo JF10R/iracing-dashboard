@@ -21,7 +21,9 @@ export async function onRequestPost(context) {
 
     const iRacingAPI = new iRacing();
     await iRacingAPI.login(IRACING_EMAIL, IRACING_PASSWORD);
-    const data = await iRacingAPI.searchDrivers({ searchTerm });
+
+    // Corrected: Use the documented `lookup.getDrivers` method
+    const data = await iRacingAPI.lookup.getDrivers({ searchTerm });
     
     return new Response(JSON.stringify(data), {
       headers: { 'Content-Type': 'application/json' },
