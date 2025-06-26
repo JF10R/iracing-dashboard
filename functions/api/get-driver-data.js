@@ -13,22 +13,22 @@ export async function onRequestPost(context) {
       return new Response('Missing required parameters', { status: 400 });
     }
 
-    // Fetch all required data points in parallel for efficiency
+    // Fetch all required data points in parallel
     const [recap, memberInfo] = await Promise.all([
         iRacingAPI.stats.getMemberRecap({ customerId: custId, year, season }),
         iRacingAPI.member.get({ customerIds: [custId], includeLicenses: true })
     ]);
+
+    // Determine the most-raced category to fetch chart data
+    let mostRacedCategory = { categoryId: 2, name: 'road' }; // Default to road
     
     // Create a temporary, non-authed instance for the constants call
     const iRacingConstantsAPI = new iRacing();
     const allCategories = await iRacingConstantsAPI.constants.getCategories();
 
-    // Determine the most-raced category to fetch chart data for
-    let mostRacedCategory = { categoryId: 2, name: 'road' }; // Default to road
     if (recap && recap.races && recap.races.length > 0) {
         const categoryCounts = recap.races.reduce((acc, race) => {
-            const categoryName = race.category.toLowerCase().replace(' ', '_');
-            acc[categoryName] = (acc[categoryName] || 0) + 1;
+            acc[race.category] = (acc[race.category] || 0) + 1;
             return acc;
         }, {});
         const topCategoryName = Object.keys(categoryCounts).reduce((a, b) => categoryCounts[a] > categoryCounts[b] ? a : b);
@@ -39,19 +39,19 @@ export async function onRequestPost(context) {
         }
     }
     
-    // Fetch iRating and Safety Rating chart data for that category
+    // Fetch iRating and Safety Rating chart data for the most raced category
     const [iRatingData, safetyRatingData] = await Promise.all([
         iRacingAPI.member.getChartData({ customerId: custId, categoryId: mostRacedCategory.categoryId, chartType: 1 }),
         iRacingAPI.member.getChartData({ customerId: custId, categoryId: mostRacedCategory.categoryId, chartType: 3 }),
     ]);
 
-    // Combine all data into a single response object
+    // Combine all data into a single response
     const responseData = {
         recap,
         memberInfo: memberInfo[0] || {},
         iRatingData,
         safetyRatingData,
-        allCategories,
+        allCategories, // Send all categories to the front-end
         mostRacedCategoryName: mostRacedCategory.name
     };
     
@@ -64,6 +64,6 @@ export async function onRequestPost(context) {
      if (error.message === 'Authentication secrets not configured') {
         return new Response(error.message, { status: 500 });
     }
-    return new Response('Error in get-stats function: ' + error.message, { status: 500 });
+    return new Response('Error in get-driver-data function: ' + error.message, { status: 500 });
   }
 }

@@ -1,18 +1,11 @@
 import iRacing from 'iracing-api';
-
-// This "monkey-patch" intercepts fetch requests to make them compatible with Cloudflare Workers.
-const originalFetch = globalThis.fetch;
-globalThis.fetch = (url, options) => {
-  if (options && options.cache === 'no-cache') {
-    delete options.cache;
-  }
-  return originalFetch(url, options);
-};
+// Import the helper primarily for its side effect of patching globalThis.fetch
+import '../helpers/iracing-helper.js';
 
 export async function onRequest(context) {
   try {
+    // Create a new, non-authenticated instance for this constants call
     const iRacingAPI = new iRacing();
-    // This constants endpoint does not require authentication.
     const data = await iRacingAPI.constants.getCategories();
     
     return new Response(JSON.stringify(data), {
