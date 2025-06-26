@@ -219,7 +219,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.querySelectorAll('.search-result-item').forEach(item => {
                 item.addEventListener('click', (e) => {
                     searchModalContainer.classList.add('hidden');
-                    const custId = e.target.dataset.dataset.custId;
+                    const custId = e.target.dataset.custId;
                     window.location.hash = `#/driver/${custId}`;
                 });
             });
