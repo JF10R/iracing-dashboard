@@ -20,8 +20,8 @@ export async function onRequest(context) {
   try {
     const iRacingAPI = new iRacing();
 
-    // Corrected: Use the documented `season.getSeasons` method
-    const data = await iRacingAPI.season.getSeasons({ customerId: parseInt(custId) });
+    // Corrected: Use the top-level `getSeasons` method
+    const data = await iRacingAPI.getSeasons({ customerId: parseInt(custId) });
     
     return new Response(JSON.stringify(data), {
       headers: { 'Content-Type': 'application/json' },

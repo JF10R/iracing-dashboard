@@ -13,7 +13,6 @@ const api = {
             alert('Error searching for drivers. Check the console for details.');
             return [];
         }
-        // The library returns a direct array, so we return the result directly.
         return await response.json();
     },
 
@@ -85,7 +84,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 drivers.forEach(driver => {
                     const driverEl = document.createElement('div');
                     driverEl.className = 'p-3 hover:bg-gray-700 rounded-lg cursor-pointer';
-                    // Corrected: Use camelCase properties
                     driverEl.textContent = driver.displayName;
                     driverEl.dataset.custId = driver.custId;
                     driverEl.addEventListener('click', () => selectDriver(driver));
@@ -109,13 +107,11 @@ document.addEventListener('DOMContentLoaded', () => {
         currentDriver = driver;
         driverModal.classList.add('hidden');
         driverModal.classList.remove('flex');
-        // Corrected: Use camelCase properties
         document.getElementById('driver-name').textContent = driver.displayName;
         document.getElementById('driver-cust-id').textContent = `Customer ID: ${driver.custId}`;
         dashboardDiv.classList.remove('hidden');
         dashboardLoader.classList.remove('hidden');
         statsContentDiv.classList.add('hidden');
-        // Corrected: Use camelCase properties
         const seasons = await api.getSeasons(driver.custId);
         allSeasonsData = seasons; // Store all seasons
         populateSeasonFilters(seasons);
@@ -135,12 +131,10 @@ document.addEventListener('DOMContentLoaded', () => {
         statsContentDiv.classList.add('hidden');
         const year = yearSelect.value;
         const season = seasonSelect.value;
-        // Corrected: Use camelCase properties
         seasonData = await api.getSeasonStats(currentDriver.custId, year, season);
         dashboardLoader.classList.add('hidden');
         statsContentDiv.classList.remove('hidden');
 
-        // Corrected: The library returns the stats object directly
         if (seasonData && Object.keys(seasonData).length > 0) {
             const categories = Object.keys(seasonData);
             const mostPopularCategory = categories.reduce((a, b) => seasonData[a].summary.starts > seasonData[b].summary.starts ? a : b);
@@ -156,7 +150,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function displayCategoryStats() {
         const selectedCategory = categorySelect.value;
-        // Corrected: Check for seasonData and the selected category
         if (!seasonData || !seasonData[selectedCategory]) return;
         const stats = seasonData[selectedCategory].summary;
         document.getElementById('summary-stats').innerHTML = `
@@ -172,7 +165,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function populateLapTimeFilters() {
-        // Corrected: Access races from the correct object property
         const races = seasonData[categorySelect.value].races;
         if (!races || races.length === 0) {
              document.getElementById('track-select').innerHTML = '<option>No tracks raced</option>';
@@ -186,19 +178,21 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateCarFilterAndChart() {
-        if (!seasonData[categorySelect.value].races) return;
+        const selectedCategoryData = seasonData[categorySelect.value];
+        if (!selectedCategoryData || !selectedCategoryData.races) return;
         const selectedTrack = trackSelect.value;
-        const racesOnTrack = seasonData[categorySelect.value].races.filter(r => r.track.trackName === selectedTrack);
+        const racesOnTrack = selectedCategoryData.races.filter(r => r.track.trackName === selectedTrack);
         const uniqueCars = [...new Set(racesOnTrack.map(r => r.car.carName))];
         carSelect.innerHTML = uniqueCars.map(c => `<option value="${c}">${c}</option>`).join('');
         updateLapTimeChart();
     }
 
     function updateLapTimeChart() {
-        if (!seasonData[categorySelect.value].races) return;
+        const selectedCategoryData = seasonData[categorySelect.value];
+        if (!selectedCategoryData || !selectedCategoryData.races) return;
         const selectedTrack = trackSelect.value;
         const selectedCar = carSelect.value;
-        const raceData = seasonData[categorySelect.value].races
+        const raceData = selectedCategoryData.races
             .filter(r => r.track.trackName === selectedTrack && r.car.carName === selectedCar)
             .sort((a,b) => new Date(a.startTime) - new Date(b.startTime));
         
