@@ -14,7 +14,6 @@ export async function onRequestPost(context) {
     }
 
     // Fetch all required data points in parallel for efficiency
-    // Corrected: Use getMemberData instead of getMember
     const [recap, memberInfo, yearlyStats] = await Promise.all([
         iRacingAPI.stats.getMemberRecap({ customerId: custId, year, season }),
         iRacingAPI.member.getMemberData({ customerIds: [custId], includeLicenses: true }),
@@ -42,9 +41,10 @@ export async function onRequestPost(context) {
     }
     
     // Fetch iRating and Safety Rating chart data for that category
+    // Corrected: The function is likely getMemberChartData, following library convention.
     const [iRatingData, safetyRatingData] = await Promise.all([
-        iRacingAPI.member.getChartData({ customerId: custId, categoryId: mostRacedCategory.categoryId, chartType: 1 }),
-        iRacingAPI.member.getChartData({ customerId: custId, categoryId: mostRacedCategory.categoryId, chartType: 3 }),
+        iRacingAPI.member.getMemberChartData({ customerId: custId, categoryId: mostRacedCategory.categoryId, chartType: 1 }),
+        iRacingAPI.member.getMemberChartData({ customerId: custId, categoryId: mostRacedCategory.categoryId, chartType: 3 }),
     ]);
 
     // Combine all data into a single response object
