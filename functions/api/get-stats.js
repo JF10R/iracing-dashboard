@@ -13,29 +13,29 @@ export async function onRequestPost(context) {
       return new Response('Missing required parameters', { status: 400 });
     }
 
-    // Fetch all required data points in parallel for efficiency
-    // Added 'seriesResults' to get the detailed list of races for the season.
+    // Corrected: Fetch the detailed series results in addition to the recap.
     const [recap, memberInfo, yearlyStats, allCategories, seriesResults] = await Promise.all([
         iRacingAPI.stats.getMemberRecap({ customerId: custId, year, season }),
         iRacingAPI.member.getMemberData({ customerIds: [custId], includeLicenses: true }),
         iRacingAPI.stats.getMemberYearlyStats({ customerId: custId }),
         new iRacing().constants.getCategories(), // Non-authed call
+        // This is the new call to get the list of individual races.
         iRacingAPI.results.searchSeries({ cust_id: custId, season_year: year, season_quarter: season })
     ]);
     
     // Manually add the detailed race list from searchSeries into our main recap object.
-    // This provides the front-end with all the data it needs.
+    // The front-end ui.js file is already set up to look for recap.races.
     if(seriesResults && seriesResults.results && seriesResults.results.length > 0) {
         recap.races = seriesResults.results;
     } else {
-        recap.races = []; // Ensure races is always an array
+        recap.races = []; // Ensure races is always an array, even if empty.
     }
 
     // Determine the most-raced category to fetch chart data for
     let mostRacedCategory = { categoryId: 5, name: 'sports_car' }; // Default to Sports Car
     if (recap.races && recap.races.length > 0) {
         const categoryCounts = recap.races.reduce((acc, race) => {
-            const categoryName = race.category.toLowerCase().replace(/ /g, '_');
+            const categoryName = race.series_name.toLowerCase().includes('oval') ? 'oval' : 'road'; // Simplified logic
             acc[categoryName] = (acc[categoryName] || 0) + 1;
             return acc;
         }, {});
