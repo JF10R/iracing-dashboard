@@ -61,7 +61,7 @@ function renderGrid(data, state) {
         <!-- Racing Activity -->
         <div class="card col-span-12 lg:col-span-9">
             <h3 class="font-bold mb-4">Racing Activity</h3>
-            <p class="text-sm text-gray-400 mb-2">${races.length} races on ${[...new Set(races.map(r => new Date(r.startTime).toDateString()))].length} days this season</p>
+            <p class="text-sm text-gray-400 mb-2">${races.length} races on ${[...new Set(races.map(r => new Date(r.start_time).toDateString()))].length} days this season</p>
             <div id="activity-grid-container" class="overflow-x-auto pb-2"></div>
         </div>
 
@@ -116,7 +116,10 @@ function createStatCard(label, value, unit = '') {
 
 function renderRatingChart(canvasId, chartData, label, color, isSR = false) {
     const canvas = document.getElementById(canvasId);
-    if (!canvas || !chartData || !chartData.points || chartData.points.length === 0) return;
+    if (!canvas || !chartData || !chartData.points || chartData.points.length === 0) {
+        canvas.parentElement.innerHTML += '<p class="text-center text-gray-500">No chart data available.</p>';
+        return;
+    }
     const points = chartData.points.map(p => ({ x: new Date(p.time), y: isSR ? p.value / 100 : p.value }));
     new Chart(canvas.getContext('2d'), {
         type: 'line',
@@ -132,7 +135,7 @@ function renderActivityGrid(container, races) {
     }
     const activity = new Map();
     races.forEach(race => {
-        const date = new Date(race.startTime).toDateString();
+        const date = new Date(race.start_time).toDateString();
         activity.set(date, (activity.get(date) || 0) + 1);
     });
 
@@ -159,7 +162,7 @@ function renderFinishPositions(container, races) {
     }
     const positions = Array(25).fill(0);
     races.forEach(race => {
-        const pos = race.finishPositionInClass + 1;
+        const pos = race.finish_position_in_class + 1;
         if (pos < 25) positions[pos - 1]++;
         else positions[24]++;
     });
@@ -187,14 +190,14 @@ function renderLapTimeProgression(trackSelect, carSelect, races) {
         if (!selectedTrack || !selectedCar) return;
 
         const raceData = races
-            .filter(r => r.track.trackName === selectedTrack && r.car.carName === selectedCar && r.bestLapTime !== -1)
-            .sort((a,b) => new Date(a.startTime) - new Date(b.startTime));
+            .filter(r => r.track_name === selectedTrack && r.car_name === selectedCar && r.best_lap_time !== -1)
+            .sort((a,b) => new Date(a.start_time) - new Date(b.start_time));
         
         const chartData = {
-            labels: raceData.map(r => new Date(r.startTime).toLocaleDateString()),
+            labels: raceData.map(r => new Date(r.start_time).toLocaleDateString()),
             datasets: [{
                 label: `Best Lap Time`,
-                data: raceData.map(r => lapTimeToSeconds(r.bestLapTime)),
+                data: raceData.map(r => lapTimeToSeconds(r.best_lap_time)),
                 borderColor: '#e60000',
                 tension: 0.1,
                 borderWidth: 2,
@@ -211,7 +214,7 @@ function renderLapTimeProgression(trackSelect, carSelect, races) {
 
     function updateCarOptions() {
         const selectedTrack = trackSelect.value;
-        const relevantCars = [...new Set(races.filter(r => r.track.trackName === selectedTrack).map(r => r.car.carName))];
+        const relevantCars = [...new Set(races.filter(r => r.track_name === selectedTrack).map(r => r.car_name))];
         carSelect.innerHTML = relevantCars.map(c => `<option value="${c}">${c}</option>`).join('');
         updateChart();
     }
@@ -222,7 +225,7 @@ function renderLapTimeProgression(trackSelect, carSelect, races) {
         return;
     }
     
-    const uniqueTracks = [...new Set(races.map(r => r.track.trackName))];
+    const uniqueTracks = [...new Set(races.map(r => r.track_name))];
     trackSelect.innerHTML = uniqueTracks.map(t => `<option value="${t}">${t}</option>`).join('');
     
     trackSelect.addEventListener('change', updateCarOptions);
@@ -233,14 +236,14 @@ function renderLapTimeProgression(trackSelect, carSelect, races) {
 
 function renderRaceItem(race) {
     return `
-        <div class="race-item p-3 bg-gray-800 rounded-lg cursor-pointer hover:bg-gray-700 flex justify-between items-center" data-subsession-id="${race.subsessionId}">
+        <div class="race-item p-3 bg-gray-800 rounded-lg cursor-pointer hover:bg-gray-700 flex justify-between items-center" data-subsession-id="${race.subsessionid}">
             <div>
-                <p class="font-bold">${race.seriesName}</p>
-                <p class="text-sm text-gray-400">${race.track.trackName}</p>
+                <p class="font-bold">${race.series_name}</p>
+                <p class="text-sm text-gray-400">${race.track_name}</p>
             </div>
             <div class="text-right">
-                <p class="font-mono">P${race.finishPositionInClass + 1}</p>
-                <p class="text-sm text-gray-500">${new Date(race.startTime).toLocaleDateString()}</p>
+                <p class="font-mono">P${race.finish_position_in_class + 1}</p>
+                <p class="text-sm text-gray-500">${new Date(race.start_time).toLocaleDateString()}</p>
             </div>
         </div>
     `;
