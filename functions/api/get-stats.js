@@ -1,4 +1,5 @@
 import { createAuthenticatedIRacingAPI } from '../helpers/iracing-helper.js';
+import iRacing from 'iracing-api';
 
 export async function onRequestPost(context) {
   try {
@@ -12,46 +13,50 @@ export async function onRequestPost(context) {
       return new Response('Missing required parameters', { status: 400 });
     }
 
-    // Use the single authenticated instance for all data fetching
+    // Simplified: Fetch only the necessary data points. getMemberRecap includes the season's races.
     const [recap, memberInfo, yearlyStats, allCategories] = await Promise.all([
         iRacingAPI.stats.getMemberRecap({ customerId: custId, year, season }),
         iRacingAPI.member.getMemberData({ customerIds: [custId], includeLicenses: true }),
         iRacingAPI.stats.getMemberYearlyStats({ customerId: custId }),
-        iRacingAPI.constants.getCategories() // No need for a separate instance
+        new iRacing().constants.getCategories() // Non-authed call
     ]);
     
     // Determine the most-raced category to fetch chart data for
     let mostRacedCategory = { categoryId: 5, name: 'sports_car' }; // Default to Sports Car
     if (recap && recap.races && recap.races.length > 0) {
         const categoryCounts = recap.races.reduce((acc, race) => {
-            const categoryName = race.category.toLowerCase().replace(' ', '_');
+            const categoryName = race.category.toLowerCase().replace(/ /g, '_');
             acc[categoryName] = (acc[categoryName] || 0) + 1;
             return acc;
         }, {});
         const topCategoryName = Object.keys(categoryCounts).reduce((a, b) => categoryCounts[a] > categoryCounts[b] ? a : b);
-        
-        // Ensure allCategories is an array before using .find()
         const categoriesArray = Array.isArray(allCategories) ? allCategories : [];
-        const topCategory = categoriesArray.find(c => c.label.toLowerCase().replace(' ', '_') === topCategoryName);
-
+        const topCategory = categoriesArray.find(c => c.label.toLowerCase().replace(/ /g, '_') === topCategoryName);
         if(topCategory) {
             mostRacedCategory = { categoryId: topCategory.categoryId, name: topCategoryName };
         }
     }
     
-    // Fetch iRating and Safety Rating chart data for that category
+    // Fetch iRating and Safety Rating chart data
     const [iRatingData, safetyRatingData] = await Promise.all([
         iRacingAPI.member.getMemberChartData({ customerId: custId, categoryId: mostRacedCategory.categoryId, chartType: 1 }),
         iRacingAPI.member.getMemberChartData({ customerId: custId, categoryId: mostRacedCategory.categoryId, chartType: 3 }),
     ]);
 
-    // Combine all data into a single response object
+    // Add latest value to chart data for easy display on the front-end
+    if(iRatingData && iRatingData.points && iRatingData.points.length > 0) {
+        iRatingData.displayValue = iRatingData.points[iRatingData.points.length - 1].value;
+    }
+    if(safetyRatingData && safetyRatingData.points && safetyRatingData.points.length > 0) {
+        const lastSR = safetyRatingData.points[safetyRatingData.points.length - 1].value;
+        safetyRatingData.displayValue = (lastSR / 100).toFixed(2);
+    }
+
     const responseData = {
         recap,
-        memberInfo: memberInfo.members[0] || {}, // Data is nested under a `members` key
+        memberInfo: memberInfo.members[0] || {},
         iRatingData,
         safetyRatingData,
-        // Corrected: Ensure allCategories is always an array in the response
         allCategories: Array.isArray(allCategories) ? allCategories : [], 
         yearlyStats: yearlyStats.stats,
         mostRacedCategoryName: mostRacedCategory.name
@@ -63,9 +68,6 @@ export async function onRequestPost(context) {
 
   } catch (error) {
     console.error("Function error:", { message: error.message, stack: error.stack });
-     if (error.message === 'Authentication secrets not configured') {
-        return new Response(error.message, { status: 500 });
-    }
     return new Response('Error in get-stats function: ' + error.message, { status: 500 });
   }
 }

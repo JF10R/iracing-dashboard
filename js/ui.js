@@ -14,12 +14,13 @@ export function renderDashboard(data, state, onFilterChange) {
 
 function renderHeader(data, state, onFilterChange) {
     const headerContainer = document.getElementById('dashboard-header');
+    // Use the comprehensive yearly stats for the year dropdown
     const uniqueYears = [...new Set(data.yearlyStats.map(y => y.year))].sort((a, b) => b - a);
     
     headerContainer.innerHTML = `
         <div class="flex flex-wrap items-center justify-between gap-4">
             <div class="flex items-center gap-4">
-                <img src="https://images-static.iracing.com/${data.memberInfo.helmet.helmetImage}" class="h-12 w-12 hidden sm:block" alt="Helmet" onerror="this.style.display='none'"/>
+                <img src="https://images-static.iracing.com/${data.memberInfo.helmet.helmetImage}" class="h-12 w-12 hidden sm:block rounded-full" alt="Helmet" onerror="this.style.display='none'"/>
                 <div>
                     <h2 class="text-3xl font-extrabold text-white">${data.memberInfo.displayName}</h2>
                     <p class="text-gray-400">iRacing Profile</p>
@@ -44,11 +45,10 @@ function renderGrid(data, state) {
     const stats = recap.stats;
     const races = recap.races || [];
     
-    // --- Main Grid Structure --- //
     gridContainer.innerHTML = `
         <!-- iRating & SR Charts -->
-        <div class="card col-span-12 lg:col-span-6"><h3 class="font-bold mb-4 flex justify-between">iRating <span class="text-lg font-extrabold">${data.iRatingData.displayValue}</span></h3><div class="h-64"><canvas id="irating-chart"></canvas></div></div>
-        <div class="card col-span-12 lg:col-span-6"><h3 class="font-bold mb-4 flex justify-between">Safety Rating <span class="text-lg font-extrabold">${data.safetyRatingData.displayValue}</span></h3><div class="h-64"><canvas id="sr-chart"></canvas></div></div>
+        <div class="card col-span-12 lg:col-span-6"><h3 class="font-bold mb-4 flex justify-between">iRating <span class="text-lg font-extrabold text-red-500">${data.iRatingData.displayValue || 'N/A'}</span></h3><div class="h-64"><canvas id="irating-chart"></canvas></div></div>
+        <div class="card col-span-12 lg:col-span-6"><h3 class="font-bold mb-4 flex justify-between">Safety Rating <span class="text-lg font-extrabold text-blue-500">${data.safetyRatingData.displayValue || 'N/A'}</span></h3><div class="h-64"><canvas id="sr-chart"></canvas></div></div>
         
         <!-- Main Stats -->
         <div class="card col-span-12 lg:col-span-3 grid grid-cols-2 gap-4 content-start">
@@ -62,7 +62,7 @@ function renderGrid(data, state) {
         <div class="card col-span-12 lg:col-span-9">
             <h3 class="font-bold mb-4">Racing Activity</h3>
             <p class="text-sm text-gray-400 mb-2">${races.length} races on ${[...new Set(races.map(r => new Date(r.startTime).toDateString()))].length} days this season</p>
-            <div id="activity-grid-container" class="overflow-x-auto"></div>
+            <div id="activity-grid-container" class="overflow-x-auto pb-2"></div>
         </div>
 
         <!-- Finish Positions -->
@@ -95,14 +95,13 @@ function renderGrid(data, state) {
         <div class="card col-span-12">
             <h3 class="font-bold mb-4">Races This Season</h3>
             <div id="race-list" class="space-y-2 max-h-96 overflow-y-auto">
-                ${races.length > 0 ? races.map(renderRaceItem).join('') : '<p class="text-gray-400">No races found for this season.</p>'}
+                ${races.length > 0 ? races.map(renderRaceItem).join('') : '<p class="text-gray-400 text-center py-4">No races found for this season.</p>'}
             </div>
         </div>
     `;
 
-    // --- Render Dynamic Components --- //
     renderRatingChart('irating-chart', data.iRatingData, 'iRating', '#e60000');
-    renderRatingChart('sr-chart', data.safetyRatingData, 'Safety Rating', '#1e90ff', true);
+    renderRatingChart('sr-chart', data.safetyRatingData, 'Safety Rating', '#3b82f6', true);
     renderActivityGrid(document.getElementById('activity-grid-container'), races);
     renderFinishPositions(document.getElementById('finish-pos-container'), races);
     renderLapTimeProgression(document.getElementById('lap-track-select'), document.getElementById('lap-car-select'), races);
@@ -116,9 +115,10 @@ function createStatCard(label, value, unit = '') {
 }
 
 function renderRatingChart(canvasId, chartData, label, color, isSR = false) {
-    if (!chartData || !chartData.points || chartData.points.length === 0) return;
+    const canvas = document.getElementById(canvasId);
+    if (!canvas || !chartData || !chartData.points || chartData.points.length === 0) return;
     const points = chartData.points.map(p => ({ x: new Date(p.time), y: isSR ? p.value / 100 : p.value }));
-    new Chart(document.getElementById(canvasId).getContext('2d'), {
+    new Chart(canvas.getContext('2d'), {
         type: 'line',
         data: { datasets: [{ label, data: points, borderColor: color, tension: 0.2, pointRadius: 0, borderWidth: 2 }] },
         options: { responsive: true, maintainAspectRatio: false, scales: { x: { type: 'time', time: { unit: 'month' }, ticks: { color: '#888' }, grid: { color: 'rgba(255,255,255,0.1)' } }, y: { ticks: { color: '#888' }, grid: { color: 'rgba(255,255,255,0.1)' } } }, plugins: { legend: { display: false } } }
@@ -126,6 +126,10 @@ function renderRatingChart(canvasId, chartData, label, color, isSR = false) {
 }
 
 function renderActivityGrid(container, races) {
+    if(!races || races.length === 0) {
+        container.innerHTML = '<p class="text-center text-gray-500">No race activity this season.</p>';
+        return;
+    }
     const activity = new Map();
     races.forEach(race => {
         const date = new Date(race.startTime).toDateString();
@@ -139,7 +143,7 @@ function renderActivityGrid(container, races) {
     let html = '<div class="activity-grid">';
     for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
         const count = activity.get(d.toDateString()) || 0;
-        let opacity = 0;
+        let opacity = 0.1;
         if (count > 0) opacity = 0.3 + (count * 0.2);
         if (opacity > 1) opacity = 1;
         html += `<div class="activity-cell" style="background-color: rgba(230, 0, 0, ${opacity});" title="${count} race(s) on ${d.toLocaleDateString()}"></div>`;
@@ -183,7 +187,7 @@ function renderLapTimeProgression(trackSelect, carSelect, races) {
         if (!selectedTrack || !selectedCar) return;
 
         const raceData = races
-            .filter(r => r.track.trackName === selectedTrack && r.car.carName === selectedCar)
+            .filter(r => r.track.trackName === selectedTrack && r.car.carName === selectedCar && r.bestLapTime !== -1)
             .sort((a,b) => new Date(a.startTime) - new Date(b.startTime));
         
         const chartData = {
@@ -192,7 +196,8 @@ function renderLapTimeProgression(trackSelect, carSelect, races) {
                 label: `Best Lap Time`,
                 data: raceData.map(r => lapTimeToSeconds(r.bestLapTime)),
                 borderColor: '#e60000',
-                tension: 0.1
+                tension: 0.1,
+                borderWidth: 2,
             }]
         };
 
@@ -200,7 +205,7 @@ function renderLapTimeProgression(trackSelect, carSelect, races) {
         lapTimeChart = new Chart(ctx, {
             type: 'line',
             data: chartData,
-            options: { responsive: true, maintainAspectRatio: false, scales: { x: { ticks: {color: '#888'} }, y: { ticks: {color: '#888', callback: (value) => secondsToLapTime(value) }} }, plugins: { legend: { display: false } } }
+            options: { responsive: true, maintainAspectRatio: false, scales: { x: { ticks: {color: '#888'}, grid: {color: 'rgba(255,255,255,0.1)'} }, y: { ticks: {color: '#888', callback: (value) => secondsToLapTime(value)}, grid: {color: 'rgba(255,255,255,0.1)'} } }, plugins: { legend: { display: false } } }
         });
     }
 
