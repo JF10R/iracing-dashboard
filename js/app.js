@@ -35,6 +35,15 @@ const api = {
         });
         return response.ok ? response.json() : null;
     },
+    getSeasons: async function(custId) {
+        const response = await fetch(`/api/get-seasons?custId=${custId}`);
+        if (!response.ok) {
+            console.error("Failed to fetch seasons");
+            alert('Error fetching season list. Check the console for details.');
+            return [];
+        }
+        return await response.json();
+    },
 };
 
 // --- Application Logic --- //
@@ -53,6 +62,7 @@ document.addEventListener('DOMContentLoaded', () => {
         currentSeason: Math.floor(new Date().getMonth() / 3) + 1,
         currentCategory: 'sports_car', // Default category
         isLoading: false,
+        allSeasonsData: [], // To store year/season data
     };
 
     // --- Core Functions --- //
@@ -63,9 +73,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function loadDriverData(custId, year, season, category) {
         setLoading(true);
-        searchView.classList.add('hidden');
-        dashboardView.classList.remove('hidden');
+        if(searchView) searchView.classList.add('hidden');
+        if(dashboardView) dashboardView.classList.remove('hidden');
         clearDashboard();
+        
+        // Fetch seasons list if we don't have it
+        if(state.allSeasonsData.length === 0) {
+            state.allSeasonsData = await api.getSeasons(custId);
+        }
 
         const driverData = await api.getDriverData(custId, year, season);
         
@@ -108,7 +123,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Router --- //
     function handleRouteChange() {
-        // Corrected: Add a defensive check to ensure the main view elements exist in the HTML.
         if (!searchView || !dashboardView) {
             console.error("Fatal Error: Main view elements ('search-view' or 'dashboard-view') not found in the DOM. Please ensure your index.html file is up to date.");
             document.body.innerHTML = '<p class="p-8 text-center text-red-500 font-bold">Fatal Error: Your index.html file is out of date. Cannot render the application.</p>';
@@ -120,7 +134,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (hash === '#/') {
             searchView.classList.remove('hidden');
             dashboardView.classList.add('hidden');
-            document.getElementById('header-subtitle').textContent = "Enter a driver's name to view their racing statistics.";
+            const subtitle = document.getElementById('header-subtitle');
+            if(subtitle) subtitle.textContent = "Enter a driver's name to view their racing statistics.";
             return;
         }
 
@@ -147,9 +162,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const headerContainer = document.getElementById('dashboard-header');
         const gridContainer = document.getElementById('dashboard-grid');
 
-        // This assumes getDriverData returns an object with a `recap` property that has `allYears`
-        // We need to ensure the backend provides this data. For now, we'll create a fallback.
-        const yearsData = data.recap.allYears || [{ year: state.currentYear }];
+        // Corrected: Use the allSeasonsData from the state
+        const yearsData = state.allSeasonsData || [{ year: state.currentYear }];
         const uniqueYears = [...new Set(yearsData.map(y => y.year))].sort((a,b) => b-a);
 
         headerContainer.innerHTML = `
@@ -170,7 +184,6 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('season-filter').addEventListener('change', (e) => onFilterChange({ season: parseInt(e.target.value)}));
         document.getElementById('category-filter').addEventListener('change', (e) => onFilterChange({ category: e.target.value}));
 
-        // Render stats cards
         const stats = data.recap.stats;
         gridContainer.innerHTML = `
             <div class="card col-span-12 lg:col-span-8 grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -183,7 +196,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 ${createStatCard('Laps Led', stats.lapsLed)}
                 ${createStatCard('Incidents', stats.incidents)}
             </div>
-            <!-- More components will go here -->
         `;
     }
     
@@ -194,39 +206,43 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Event Listeners & Initialization --- //
-    document.getElementById('search-btn').addEventListener('click', async () => {
-        const searchTerm = document.getElementById('driver-search').value;
-        if (!searchTerm) return;
-        setLoading(true);
-        const drivers = await api.searchDrivers(searchTerm);
-        setLoading(false);
-        
-        if (drivers && drivers.length > 0) {
-            searchModalContainer.classList.remove('hidden');
-            searchModalContainer.classList.add('flex');
-            searchModalContainer.innerHTML = `
-                <div class="bg-gray-800 rounded-lg shadow-xl w-full max-w-md">
-                    <div class="p-4 border-b border-gray-700"><h3 class="text-xl font-semibold">Select a Driver</h3></div>
-                    <div class="p-4 max-h-80 overflow-y-auto">
-                        ${drivers.map(d => `<div class="p-3 hover:bg-gray-700 rounded-lg cursor-pointer search-result-item" data-cust-id="${d.custId}">${d.displayName}</div>`).join('')}
-                    </div>
-                    <div class="p-4 bg-gray-900/50 rounded-b-lg text-right">
-                        <button id="close-search-modal" class="bg-gray-600 hover:bg-gray-500 text-white font-semibold px-4 py-2 rounded-lg">Cancel</button>
-                    </div>
-                </div>`;
-                
-            document.getElementById('close-search-modal').addEventListener('click', () => searchModalContainer.classList.add('hidden'));
-            document.querySelectorAll('.search-result-item').forEach(item => {
-                item.addEventListener('click', (e) => {
-                    searchModalContainer.classList.add('hidden');
-                    const custId = e.target.dataset.custId;
-                    window.location.hash = `#/driver/${custId}`;
+    const searchBtn = document.getElementById('search-btn');
+    if(searchBtn) {
+        searchBtn.addEventListener('click', async () => {
+            const driverSearchInput = document.getElementById('driver-search');
+            const searchTerm = driverSearchInput.value;
+            if (!searchTerm) return;
+            setLoading(true);
+            const drivers = await api.searchDrivers(searchTerm);
+            setLoading(false);
+            
+            if (drivers && drivers.length > 0) {
+                searchModalContainer.classList.remove('hidden');
+                searchModalContainer.classList.add('flex');
+                searchModalContainer.innerHTML = `
+                    <div class="bg-gray-800 rounded-lg shadow-xl w-full max-w-md">
+                        <div class="p-4 border-b border-gray-700"><h3 class="text-xl font-semibold">Select a Driver</h3></div>
+                        <div class="p-4 max-h-80 overflow-y-auto">
+                            ${drivers.map(d => `<div class="p-3 hover:bg-gray-700 rounded-lg cursor-pointer search-result-item" data-cust-id="${d.custId}">${d.displayName}</div>`).join('')}
+                        </div>
+                        <div class="p-4 bg-gray-900/50 rounded-b-lg text-right">
+                            <button id="close-search-modal" class="bg-gray-600 hover:bg-gray-500 text-white font-semibold px-4 py-2 rounded-lg">Cancel</button>
+                        </div>
+                    </div>`;
+                    
+                document.getElementById('close-search-modal').addEventListener('click', () => searchModalContainer.classList.add('hidden'));
+                document.querySelectorAll('.search-result-item').forEach(item => {
+                    item.addEventListener('click', (e) => {
+                        searchModalContainer.classList.add('hidden');
+                        const custId = e.currentTarget.dataset.custId;
+                        window.location.hash = `#/driver/${custId}`;
+                    });
                 });
-            });
-        } else {
-            alert('No drivers found.');
-        }
-    });
+            } else {
+                alert('No drivers found.');
+            }
+        });
+    }
     
     window.addEventListener('hashchange', handleRouteChange);
     
