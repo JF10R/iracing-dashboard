@@ -1,5 +1,4 @@
 import { createAuthenticatedIRacingAPI } from '../helpers/iracing-helper.js';
-import iRacing from 'iracing-api'; // Still need top-level for non-authed calls
 
 export async function onRequestPost(context) {
   try {
@@ -13,17 +12,14 @@ export async function onRequestPost(context) {
       return new Response('Missing required parameters', { status: 400 });
     }
 
-    // Fetch all required data points in parallel for efficiency
-    const [recap, memberInfo, yearlyStats] = await Promise.all([
+    // Use the single authenticated instance for all data fetching
+    const [recap, memberInfo, yearlyStats, allCategories] = await Promise.all([
         iRacingAPI.stats.getMemberRecap({ customerId: custId, year, season }),
         iRacingAPI.member.getMemberData({ customerIds: [custId], includeLicenses: true }),
-        iRacingAPI.stats.getMemberYearlyStats({ customerId: custId })
+        iRacingAPI.stats.getMemberYearlyStats({ customerId: custId }),
+        iRacingAPI.constants.getCategories() // No need for a separate instance
     ]);
     
-    // Create a temporary, non-authed instance for the constants call
-    const iRacingConstantsAPI = new iRacing();
-    const allCategories = await iRacingConstantsAPI.constants.getCategories();
-
     // Determine the most-raced category to fetch chart data for
     let mostRacedCategory = { categoryId: 5, name: 'sports_car' }; // Default to Sports Car
     if (recap && recap.races && recap.races.length > 0) {
@@ -34,14 +30,16 @@ export async function onRequestPost(context) {
         }, {});
         const topCategoryName = Object.keys(categoryCounts).reduce((a, b) => categoryCounts[a] > categoryCounts[b] ? a : b);
         
-        const topCategory = allCategories.find(c => c.label.toLowerCase().replace(' ', '_') === topCategoryName);
+        // Ensure allCategories is an array before using .find()
+        const categoriesArray = Array.isArray(allCategories) ? allCategories : [];
+        const topCategory = categoriesArray.find(c => c.label.toLowerCase().replace(' ', '_') === topCategoryName);
+
         if(topCategory) {
             mostRacedCategory = { categoryId: topCategory.categoryId, name: topCategoryName };
         }
     }
     
     // Fetch iRating and Safety Rating chart data for that category
-    // Corrected: The function is likely getMemberChartData, following library convention.
     const [iRatingData, safetyRatingData] = await Promise.all([
         iRacingAPI.member.getMemberChartData({ customerId: custId, categoryId: mostRacedCategory.categoryId, chartType: 1 }),
         iRacingAPI.member.getMemberChartData({ customerId: custId, categoryId: mostRacedCategory.categoryId, chartType: 3 }),
@@ -53,7 +51,8 @@ export async function onRequestPost(context) {
         memberInfo: memberInfo.members[0] || {}, // Data is nested under a `members` key
         iRatingData,
         safetyRatingData,
-        allCategories,
+        // Corrected: Ensure allCategories is always an array in the response
+        allCategories: Array.isArray(allCategories) ? allCategories : [], 
         yearlyStats: yearlyStats.stats,
         mostRacedCategoryName: mostRacedCategory.name
     };
