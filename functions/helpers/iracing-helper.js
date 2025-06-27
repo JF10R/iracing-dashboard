@@ -1,11 +1,13 @@
 import iRacing from 'iracing-api';
 
-// This "monkey-patch" intercepts fetch requests to make them compatible with Cloudflare Workers.
-// It replaces the unsupported 'no-cache' value with 'default', which is a safer operation.
+// This is a safer "monkey-patch" that intercepts fetch requests.
+// It creates a new options object, excluding the 'cache' property, which prevents
+// both the 'Unsupported cache mode' error and the strange side-effects.
 const originalFetch = globalThis.fetch;
 globalThis.fetch = (url, options) => {
-  if (options && options.cache === 'no-cache') {
-    options.cache = 'default'; // Replace with a supported value instead of deleting
+  if (options && options.cache) {
+    const { cache, ...restOfOptions } = options;
+    return originalFetch(url, restOfOptions);
   }
   return originalFetch(url, options);
 };
