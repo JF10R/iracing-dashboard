@@ -13,29 +13,33 @@ export async function onRequestPost(context) {
       return new Response('Missing required parameters', { status: 400 });
     }
 
-    // Corrected: Fetch the detailed series results in addition to the recap.
-    const [recap, memberInfo, yearlyStats, allCategories, seriesResults] = await Promise.all([
+    // Corrected: Fetch member's recent races instead of searching series for a more reliable race list.
+    const [recap, memberInfo, yearlyStats, allCategories, recentRaces] = await Promise.all([
         iRacingAPI.stats.getMemberRecap({ customerId: custId, year, season }),
         iRacingAPI.member.getMemberData({ customerIds: [custId], includeLicenses: true }),
         iRacingAPI.stats.getMemberYearlyStats({ customerId: custId }),
         new iRacing().constants.getCategories(), // Non-authed call
-        // This is the new call to get the list of individual races.
-        iRacingAPI.results.searchSeries({ cust_id: custId, season_year: year, season_quarter: season })
+        iRacingAPI.stats.getMemberRecentRaces({ cust_id: custId })
     ]);
     
-    // Manually add the detailed race list from searchSeries into our main recap object.
-    // The front-end ui.js file is already set up to look for recap.races.
-    if(seriesResults && seriesResults.results && seriesResults.results.length > 0) {
-        recap.races = seriesResults.results;
+    // Manually filter the recent races to only include those from the selected season.
+    if(recentRaces && recentRaces.races && recentRaces.races.length > 0) {
+        recap.races = recentRaces.races.filter(race => {
+            const raceDate = new Date(race.startTime);
+            const raceYear = raceDate.getUTCFullYear();
+            // iRacing seasons are 1-4, 12 weeks each (3 months).
+            const raceSeason = Math.floor(raceDate.getUTCMonth() / 3) + 1;
+            return raceYear === year && raceSeason === season;
+        });
     } else {
-        recap.races = []; // Ensure races is always an array, even if empty.
+        recap.races = []; // Ensure races is always an array.
     }
 
     // Determine the most-raced category to fetch chart data for
     let mostRacedCategory = { categoryId: 5, name: 'sports_car' }; // Default to Sports Car
     if (recap.races && recap.races.length > 0) {
         const categoryCounts = recap.races.reduce((acc, race) => {
-            const categoryName = race.series_name.toLowerCase().includes('oval') ? 'oval' : 'road'; // Simplified logic
+            const categoryName = race.seriesName.toLowerCase().includes('oval') ? 'oval' : 'road'; // Simplified logic
             acc[categoryName] = (acc[categoryName] || 0) + 1;
             return acc;
         }, {});
